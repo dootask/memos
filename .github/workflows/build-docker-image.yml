@@ -67,9 +67,13 @@ jobs:
           path: app
           fetch-depth: 1
 
-      # Apply configuration overrides for /apps/memos subpath
-      - name: Apply /apps/memos configuration overrides
-        run: ./overrides/apply.sh
+      # Apply configuration for /apps/memos subpath
+      - name: Configure /apps/memos subpath with AI
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          pip install pyyaml requests
+          python3 configure_subpath.py
 
       # Setup Node.js and pnpm for frontend build
       - name: Setup pnpm

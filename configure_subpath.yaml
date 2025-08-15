@@ -1,0 +1,60 @@
+# AI智能修改配置文件
+# 这个文件定义了需要AI执行的所有代码修改任务
+# ai_apply.py会读取这个配置，然后让AI理解并执行相应的修改
+
+modifications:
+  # 前端配置：让前端资源从/apps/memos路径加载
+  - file: "web/vite.config.mts"
+    description: "配置前端在/apps/memos子路径下运行"
+    instruction: |
+      请在vite的defineConfig配置对象中添加 base: "/apps/memos/" 配置项。
+      这个配置应该和plugins、server等配置项在同一个层级。
+      添加后前端的所有资源（js、css、图片等）都会从/apps/memos/路径加载。
+
+  # 前端路由配置：设置React Router的basename
+  - file: "web/src/router/index.tsx"
+    description: "配置React Router适配/apps/memos子路径"
+    instruction: |
+      请修改createBrowserRouter的调用，添加basename配置：
+      
+      const router = createBrowserRouter([
+        // ... 现有的路由配置保持不变
+      ], {
+        basename: "/apps/memos"
+      });
+      
+      这样React Router就知道应用部署在/apps/memos子路径下，所有路由都会正确工作。
+
+  # 后端配置：让后端在/apps/memos路径下提供静态文件服务
+  - file: "server/router/frontend/frontend.go"
+    description: "配置后端在/apps/memos路径下提供静态文件服务"
+    instruction: |
+      请修改Serve函数，实现以下功能：
+      1. 创建一个路由组：appGroup := e.Group("/apps/memos")
+      2. 将静态文件中间件应用到这个路由组上，而不是根echo实例
+      3. 添加根路径重定向：让访问"/"的用户重定向到"/apps/memos/"
+      4. 更新skipper函数，让它能正确处理/apps/memos相关的路径
+
+      这样修改后，用户访问http://domain/apps/memos就能看到应用界面。
+
+  # 修复PWA配置文件的静态资源路径
+  - file: "web/public/site.webmanifest"
+    description: "修复PWA配置中的静态资源绝对路径"
+    instruction: |
+      请将site.webmanifest文件中的所有绝对路径修改为相对于/apps/memos的路径：
+      1. 将 "src": "/android-chrome-192x192.png" 改为 "src": "/apps/memos/android-chrome-192x192.png"
+      2. 将 "src": "/android-chrome-512x512.png" 改为 "src": "/apps/memos/android-chrome-512x512.png"  
+      3. 将 "start_url": "/" 改为 "start_url": "/apps/memos/"
+      
+      这样PWA应用就能在子路径下正确加载图标和启动。
+
+  # 修复HTML中的favicon路径
+  - file: "web/index.html"
+    description: "修复HTML中favicon等静态资源的绝对路径"
+    instruction: |
+      请将index.html中的所有静态资源路径修改为相对于/apps/memos的路径：
+      1. 将 href="/logo.webp" 改为 href="/apps/memos/logo.webp"
+      2. 将 href="/apple-touch-icon.png" 改为 href="/apps/memos/apple-touch-icon.png"
+      3. 将 href="/site.webmanifest" 改为 href="/apps/memos/site.webmanifest"
+      
+      这样浏览器就能正确从子路径加载favicon和其他元数据文件。
