@@ -67,16 +67,9 @@ jobs:
           path: app
           fetch-depth: 1
 
-      # Configure frontend for /apps/memos base path
-      - name: Configure vite base path
-        run: |
-          echo "Configuring frontend for /apps/memos base path..."
-          cd app/web
-          # Modify vite.config.mts to set base path (Linux sed syntax)
-          sed -i 's/export default defineConfig({/export default defineConfig({\
-            base: "\/apps\/memos\/",/' vite.config.mts
-          echo "✅ Modified vite.config.mts:"
-          head -20 vite.config.mts | grep -A 5 -B 5 "base:" || head -20 vite.config.mts
+      # Apply configuration overrides for /apps/memos subpath
+      - name: Apply /apps/memos configuration overrides
+        run: ./overrides/apply.sh
 
       # Setup Node.js and pnpm for frontend build
       - name: Setup pnpm
