@@ -58,3 +58,107 @@ modifications:
       3. 将 href="/site.webmanifest" 改为 href="/apps/memos/site.webmanifest"
       
       这样浏览器就能正确从子路径加载favicon和其他元数据文件。
+
+  # 修复路径工具函数以支持子路径
+  - file: "web/src/helpers/utils.ts"
+    description: "修复absolutifyLink函数以支持/apps/memos子路径"
+    instruction: |
+      请修改absolutifyLink函数，让它能够正确处理子路径场景：
+      
+      export function absolutifyLink(rel: string): string {
+        const anchor = document.createElement("a");
+        // 如果是相对路径且不是以/apps/memos开头，添加子路径前缀
+        if (rel.startsWith("/") && !rel.startsWith("/apps/memos")) {
+          rel = "/apps/memos" + rel;
+        }
+        anchor.setAttribute("href", rel);
+        return anchor.href;
+      }
+      
+      这样所有使用absolutifyLink的地方都能正确生成子路径URL。
+
+  # 修复路由枚举定义
+  - file: "web/src/router/index.tsx"  
+    description: "修复Routes枚举中的硬编码路径"
+    instruction: |
+      请修改Routes枚举，将所有路径改为相对路径（不带前缀）：
+      
+      export enum Routes {
+        ROOT = "/",
+        ATTACHMENTS = "/attachments",
+        INBOX = "/inbox", 
+        ARCHIVED = "/archived",
+        SETTING = "/setting",
+        EXPLORE = "/explore",
+        AUTH = "/auth",
+      }
+      
+      这些路径在使用时会通过React Router的basename自动添加/apps/memos前缀。
+
+  # 修复文件附件路径
+  - file: "web/src/utils/attachment.ts"
+    description: "修复attachment文件路径以支持子路径"
+    instruction: |
+      请修改getAttachmentUrl函数，让文件路径支持子路径：
+      
+      export const getAttachmentUrl = (attachment: Attachment) => {
+        if (attachment.externalLink) {
+          return attachment.externalLink;
+        }
+        
+        return `${window.location.origin}/apps/memos/file/${attachment.name}/${attachment.filename}`;
+      };
+      
+      这样文件下载链接就会正确指向/apps/memos/file/路径。
+
+  # 修复导航跳转中的硬编码路径  
+  - file: "web/src/components/MemoActionMenu.tsx"
+    description: "修复MemoActionMenu中的硬编码导航路径"
+    instruction: |
+      请将MemoActionMenu中的硬编码路径修改为使用Routes枚举：
+      1. 将 navigateTo("/archived") 改为 navigateTo(Routes.ARCHIVED)
+      2. 将 navigateTo("/") 改为 navigateTo(Routes.ROOT)
+      
+      确保导入了Routes枚举：import { Routes } from "@/router";
+
+  # 修复备用错误页面导航
+  - file: "web/src/pages/MemoDetail.tsx"  
+    description: "修复MemoDetail中的错误页面导航路径"
+    instruction: |
+      请修改MemoDetail.tsx中的硬编码路径：
+      1. 将 navigateTo("/403") 保持不变（相对路径）
+      2. 将 navigateTo("/404") 保持不变（相对路径）
+      
+      这些路径会通过React Router的basename自动处理。
+
+  # 修复前端gRPC-Web客户端地址配置
+  - file: "web/src/grpcweb.ts"
+    description: "修复gRPC-Web客户端以支持/apps/memos子路径"
+    instruction: |
+      请修改gRPC通道的创建代码，让它支持子路径部署：
+      
+      const channel = createChannel(
+        `${window.location.origin}/apps/memos`,
+        FetchTransport({
+          credentials: "include",
+        }),
+      );
+      
+      这样gRPC请求就会发送到 /apps/memos/memos.api.v1.* 路径。
+
+  # 修复后端gRPC路由配置  
+  - file: "server/router/api/v1/v1.go"
+    description: "修复后端gRPC路由以支持/apps/memos子路径"
+    instruction: |
+      请修改RegisterGateway函数中的路由注册，将所有路由改为在/apps/memos子路径下：
+      1. 创建一个路由组：apiGroup := echoServer.Group("/apps/memos")
+      2. 将现有的路由注册全部改为使用apiGroup：
+         - apiGroup.Any("/api/v1/*", handler)
+         - apiGroup.Any("/file/*", handler)  
+         - apiGroup.Any("/memos.api.v1.*", echo.WrapHandler(wrappedGrpc))
+      3. 注释掉或删除原来的根路径路由：
+         - // gwGroup.Any("/api/v1/*", handler)
+         - // gwGroup.Any("/file/*", handler)
+         - // echoServer.Any("/memos.api.v1.*", echo.WrapHandler(wrappedGrpc))
+      
+      这样所有gRPC接口都只在/apps/memos子路径下工作，避免路径冲突。
