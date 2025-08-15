@@ -1,0 +1,121 @@
+name: Build and Push DooTask Memos Docker Image
+
+on:
+  push:
+    branches:
+      - main
+      - "release/**"
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+env:
+  DOCKER_PLATFORMS: |
+    linux/amd64
+    linux/arm64
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: ${{ env.DOCKER_PLATFORMS }}
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          version: latest
+          install: true
+          platforms: ${{ env.DOCKER_PLATFORMS }}
+
+      - name: Extract version and set tags
+        id: meta
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            VERSION=${GITHUB_REF_NAME#v}
+            TAGS="dootask/memos:${VERSION},dootask/memos:latest"
+          elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            TAGS="dootask/memos:latest"
+          else
+            BRANCH_NAME=${GITHUB_REF#refs/heads/}
+            BRANCH_NAME=${BRANCH_NAME//\//-}
+            TAGS="dootask/memos:${BRANCH_NAME}"
+          fi
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+          echo "Generated tags: ${TAGS}"
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      # Checkout memos source code
+      - name: Checkout memos source
+        uses: actions/checkout@v4
+        with:
+          repository: usememos/memos
+          path: app
+          fetch-depth: 1
+
+      # Configure frontend for /apps/memos base path
+      - name: Configure vite base path
+        run: |
+          echo "Configuring frontend for /apps/memos base path..."
+          cd app/web
+          # Modify vite.config.mts to set base path (Linux sed syntax)
+          sed -i 's/export default defineConfig({/export default defineConfig({\
+            base: "\/apps\/memos\/",/' vite.config.mts
+          echo "✅ Modified vite.config.mts:"
+          head -20 vite.config.mts | grep -A 5 -B 5 "base:" || head -20 vite.config.mts
+
+      # Setup Node.js and pnpm for frontend build
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4.1.0
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: "app/web/pnpm-lock.yaml"
+
+      - name: Install frontend dependencies
+        run: |
+          cd app/web
+          pnpm install
+
+      - name: Build frontend
+        run: |
+          cd app/web
+          echo "Building frontend with /apps/memos base path..."
+          pnpm release
+          echo "✅ Frontend build completed!"
+
+      - name: Build and Push Docker Image
+        id: docker_build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ env.DOCKER_PLATFORMS }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+
+      - name: Display image digest
+        run: echo "Image digest ${{ steps.docker_build.outputs.digest }}"

@@ -1,0 +1,9 @@
+services:
+  memos:
+    image: "dootask/memos:${PLUGIN_VERSION}"
+    volumes:
+      - memos_data:/var/opt/memos
+    restart: unless-stopped
+
+volumes:
+  memos_data:

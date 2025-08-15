@@ -1,0 +1,9 @@
+name: Memos
+tags:
+    - 实用工具
+description:
+  zh: 轻量级、自托管的备忘录中心
+  en: A lightweight, self-hosted memo hub
+author: Community
+github: https://github.com/usememos/memos
+document: https://usememos.com/docs
