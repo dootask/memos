@@ -1,0 +1,4 @@
+[submodule "dootask-appstore"]
+	path = dootask-appstore
+	url = https://github.com/dootask/memos-plugin.git
+
