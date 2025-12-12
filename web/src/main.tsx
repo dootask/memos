@@ -10,12 +10,14 @@ import router from "./router";
 import "./store/config";
 import { initialInstanceStore } from "./store/instance";
 import { initialUserStore } from "./store/user";
+import { applyDooTaskThemeAndLangFromUrl } from "./utils/dootask-entry";
 import { applyLocaleEarly } from "./utils/i18n";
 import { applyThemeEarly } from "./utils/theme";
 import "leaflet/dist/leaflet.css";
 
 // Apply theme and locale early to prevent flash of wrong theme/language
 // This uses localStorage as the source before user settings are loaded
+applyDooTaskThemeAndLangFromUrl();
 applyThemeEarly();
 applyLocaleEarly();
 
