@@ -32,6 +32,9 @@ type Profile struct {
 	Version string
 	// InstanceURL is the url of your memos instance.
 	InstanceURL string
+	// BasePath is an optional URL path prefix to serve HTTP/SPA routes under.
+	// Example: "/memos" makes the web app accessible at https://host/memos/.
+	BasePath string
 }
 
 func (p *Profile) IsDev() bool {
@@ -88,5 +91,17 @@ func (p *Profile) Validate() error {
 		p.DSN = filepath.Join(dataDir, dbFile)
 	}
 
+	p.BasePath = normalizeBasePath(p.BasePath)
 	return nil
+}
+
+func normalizeBasePath(basePath string) string {
+	basePath = strings.TrimSpace(basePath)
+	if basePath == "" || basePath == "/" {
+		return ""
+	}
+	if !strings.HasPrefix(basePath, "/") {
+		basePath = "/" + basePath
+	}
+	return strings.TrimRight(basePath, "/")
 }

@@ -5,6 +5,7 @@ import usePrevious from "react-use/lib/usePrevious";
 import Navigation from "@/components/Navigation";
 import useCurrentUser from "@/hooks/useCurrentUser";
 import useResponsiveWidth from "@/hooks/useResponsiveWidth";
+import useNavigateTo from "@/hooks/useNavigateTo";
 import { cn } from "@/lib/utils";
 import Loading from "@/pages/Loading";
 import { Routes } from "@/router";
@@ -16,6 +17,7 @@ const RootLayout = observer(() => {
   const [searchParams] = useSearchParams();
   const { sm } = useResponsiveWidth();
   const currentUser = useCurrentUser();
+  const navigateTo = useNavigateTo();
   const [initialized, setInitialized] = useState(false);
   const pathname = useMemo(() => location.pathname, [location.pathname]);
   const prevPathname = usePrevious(pathname);
@@ -24,12 +26,12 @@ const RootLayout = observer(() => {
     if (!currentUser) {
       // If disallowPublicVisibility is enabled, redirect to the login page if the user is not logged in.
       if (instanceStore.state.memoRelatedSetting.disallowPublicVisibility) {
-        window.location.href = Routes.AUTH;
+        navigateTo(Routes.AUTH, { replace: true });
         return;
       } else if (
         ([Routes.ROOT, Routes.ATTACHMENTS, Routes.INBOX, Routes.ARCHIVED, Routes.SETTING] as string[]).includes(location.pathname)
       ) {
-        window.location.href = Routes.EXPLORE;
+        navigateTo(Routes.EXPLORE, { replace: true });
         return;
       }
     }

@@ -15,6 +15,7 @@ import { instanceStore } from "@/store";
 import { initialUserStore } from "@/store/user";
 import { User, User_Role, UserSchema } from "@/types/proto/api/v1/user_service_pb";
 import { useTranslate } from "@/utils/i18n";
+import { resolveAppUrl } from "@/utils/base-path";
 
 const SignUp = observer(() => {
   const t = useTranslate();
@@ -75,7 +76,11 @@ const SignUp = observer(() => {
     <div className="py-4 sm:py-8 w-80 max-w-full min-h-svh mx-auto flex flex-col justify-start items-center">
       <div className="w-full py-4 grow flex flex-col justify-center items-center">
         <div className="w-full flex flex-row justify-center items-center mb-6">
-          <img className="h-14 w-auto rounded-full shadow" src={instanceGeneralSetting.customProfile?.logoUrl || "/logo.webp"} alt="" />
+          <img
+            className="h-14 w-auto rounded-full shadow"
+            src={resolveAppUrl(instanceGeneralSetting.customProfile?.logoUrl, "/logo.webp")}
+            alt=""
+          />
           <p className="ml-2 text-5xl text-foreground opacity-80">{instanceGeneralSetting.customProfile?.title || "Memos"}</p>
         </div>
         {!instanceGeneralSetting.disallowUserRegistration ? (

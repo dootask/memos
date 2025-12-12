@@ -5,6 +5,7 @@ import { State } from "@/types/proto/api/v1/common_pb";
 import type { Memo } from "@/types/proto/api/v1/memo_service_pb";
 import { MemoRelation_Type } from "@/types/proto/api/v1/memo_service_pb";
 import { isSuperUser } from "@/utils/user";
+import { stripBasePath } from "@/utils/base-path";
 import { RELATIVE_TIME_THRESHOLD_MS } from "../constants";
 
 export const useMemoViewDerivedState = (memo: Memo, parentPageProp?: string) => {
@@ -19,10 +20,11 @@ export const useMemoViewDerivedState = (memo: Memo, parentPageProp?: string) => 
   const relativeTimeFormat: "datetime" | "auto" =
     displayTime && Date.now() - displayTime.getTime() > RELATIVE_TIME_THRESHOLD_MS ? "datetime" : "auto";
 
+  const pathname = stripBasePath(location.pathname);
   const isArchived = memo.state === State.ARCHIVED;
   const readonly = memo.creator !== user?.name && !isSuperUser(user);
-  const isInMemoDetailPage = location.pathname.startsWith(`/${memo.name}`);
-  const parentPage = parentPageProp || location.pathname;
+  const isInMemoDetailPage = pathname.startsWith(`/${memo.name}`);
+  const parentPage = parentPageProp || pathname;
 
   return { commentAmount, relativeTimeFormat, isArchived, readonly, isInMemoDetailPage, parentPage };
 };

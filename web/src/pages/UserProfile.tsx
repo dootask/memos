@@ -16,6 +16,7 @@ import { State } from "@/types/proto/api/v1/common_pb";
 import { Memo } from "@/types/proto/api/v1/memo_service_pb";
 import { User } from "@/types/proto/api/v1/user_service_pb";
 import { useTranslate } from "@/utils/i18n";
+import { getAppOriginWithBasePath } from "@/utils/base-path";
 
 const UserProfile = observer(() => {
   const t = useTranslate();
@@ -59,7 +60,7 @@ const UserProfile = observer(() => {
       return;
     }
 
-    copy(`${window.location.origin}/u/${encodeURIComponent(user.username)}`);
+    copy(`${getAppOriginWithBasePath()}/u/${encodeURIComponent(user.username)}`);
     toast.success(t("message.copied"));
   };
 

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -50,6 +51,25 @@ func NewServer(ctx context.Context, profile *profile.Profile, store *store.Store
 	echoServer.HideBanner = true
 	echoServer.HidePort = true
 	echoServer.Use(middleware.Recover())
+
+	// Optional base path support: if BasePath is set, strip it from inbound
+	// requests so existing routes and static serving work under that prefix.
+	if profile.BasePath != "" {
+		basePath := profile.BasePath
+		echoServer.Pre(func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				path := c.Request().URL.Path
+				if path == basePath || strings.HasPrefix(path, basePath+"/") {
+					path = strings.TrimPrefix(path, basePath)
+					if path == "" {
+						path = "/"
+					}
+					c.Request().URL.Path = path
+				}
+				return next(c)
+			}
+		})
+	}
 	s.echoServer = echoServer
 
 	instanceBasicSetting, err := s.getOrUpsertInstanceBasicSetting(ctx)

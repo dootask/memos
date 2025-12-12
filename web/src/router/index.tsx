@@ -31,6 +31,9 @@ export enum Routes {
   AUTH = "/auth",
 }
 
+const baseUrl = import.meta.env.BASE_URL;
+const basename = baseUrl === "/" ? undefined : baseUrl.replace(/\/$/, "");
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -179,6 +182,6 @@ const router = createBrowserRouter([
       },
     ],
   },
-]);
+], { basename });
 
 export default router;

@@ -9,25 +9,28 @@ import { Separator } from "@/components/ui/separator";
 import { identityProviderServiceClient } from "@/grpcweb";
 import { absolutifyLink } from "@/helpers/utils";
 import useCurrentUser from "@/hooks/useCurrentUser";
+import useNavigateTo from "@/hooks/useNavigateTo";
 import { Routes } from "@/router";
 import { instanceStore } from "@/store";
 import { extractIdentityProviderIdFromName } from "@/store/common";
 import { IdentityProvider, IdentityProvider_Type } from "@/types/proto/api/v1/idp_service_pb";
 import { useTranslate } from "@/utils/i18n";
 import { storeOAuthState } from "@/utils/oauth";
+import { resolveAppUrl } from "@/utils/base-path";
 
 const SignIn = observer(() => {
   const t = useTranslate();
   const currentUser = useCurrentUser();
+  const navigateTo = useNavigateTo();
   const [identityProviderList, setIdentityProviderList] = useState<IdentityProvider[]>([]);
   const instanceGeneralSetting = instanceStore.state.generalSetting;
 
   // Redirect to root page if already signed in.
   useEffect(() => {
     if (currentUser) {
-      window.location.href = Routes.ROOT;
+      navigateTo(Routes.ROOT, { replace: true });
     }
-  }, []);
+  }, [currentUser, navigateTo]);
 
   // Prepare identity provider list.
   useEffect(() => {
@@ -73,7 +76,11 @@ const SignIn = observer(() => {
     <div className="py-4 sm:py-8 w-80 max-w-full min-h-svh mx-auto flex flex-col justify-start items-center">
       <div className="w-full py-4 grow flex flex-col justify-center items-center">
         <div className="w-full flex flex-row justify-center items-center mb-6">
-          <img className="h-14 w-auto rounded-full shadow" src={instanceGeneralSetting.customProfile?.logoUrl || "/logo.webp"} alt="" />
+          <img
+            className="h-14 w-auto rounded-full shadow"
+            src={resolveAppUrl(instanceGeneralSetting.customProfile?.logoUrl, "/logo.webp")}
+            alt=""
+          />
           <p className="ml-2 text-5xl text-foreground opacity-80">{instanceGeneralSetting.customProfile?.title || "Memos"}</p>
         </div>
         {!instanceGeneralSetting.disallowPasswordAuth ? (

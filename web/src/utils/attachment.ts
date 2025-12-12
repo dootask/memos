@@ -1,15 +1,16 @@
 import { Attachment } from "@/types/proto/api/v1/attachment_service_pb";
+import { getAppOriginWithBasePath } from "@/utils/base-path";
 
 export const getAttachmentUrl = (attachment: Attachment) => {
   if (attachment.externalLink) {
     return attachment.externalLink;
   }
 
-  return `${window.location.origin}/file/${attachment.name}/${attachment.filename}`;
+  return `${getAppOriginWithBasePath()}/file/${attachment.name}/${attachment.filename}`;
 };
 
 export const getAttachmentThumbnailUrl = (attachment: Attachment) => {
-  return `${window.location.origin}/file/${attachment.name}/${attachment.filename}?thumbnail=true`;
+  return `${getAppOriginWithBasePath()}/file/${attachment.name}/${attachment.filename}?thumbnail=true`;
 };
 
 export const getAttachmentType = (attachment: Attachment) => {

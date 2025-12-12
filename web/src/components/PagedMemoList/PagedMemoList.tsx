@@ -1,7 +1,7 @@
 import { ArrowUpIcon, LoaderIcon } from "lucide-react";
 import { observer } from "mobx-react-lite";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { matchPath } from "react-router-dom";
+import { matchPath, useLocation } from "react-router-dom";
 import PullToRefresh from "react-simple-pull-to-refresh";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_LIST_MEMOS_PAGE_SIZE } from "@/helpers/consts";
@@ -17,6 +17,7 @@ import MasonryView from "../MasonryView";
 import MemoEditor from "../MemoEditor";
 import MemoFilters from "../MemoFilters";
 import MemoSkeleton from "../MemoSkeleton";
+import { stripBasePath } from "@/utils/base-path";
 
 interface Props {
   renderer: (memo: Memo, context?: MemoRenderContext) => JSX.Element;
@@ -31,6 +32,7 @@ interface Props {
 const PagedMemoList = observer((props: Props) => {
   const t = useTranslate();
   const { md } = useResponsiveWidth();
+  const location = useLocation();
 
   // Simplified state management - separate state variables for clarity
   const [isRequesting, setIsRequesting] = useState(true);
@@ -45,7 +47,7 @@ const PagedMemoList = observer((props: Props) => {
   const sortedMemoList = props.listSort ? props.listSort(memoStore.state.memos) : memoStore.state.memos;
 
   // Show memo editor only on the root route
-  const showMemoEditor = Boolean(matchPath(Routes.ROOT, window.location.pathname));
+  const showMemoEditor = Boolean(matchPath(Routes.ROOT, stripBasePath(location.pathname)));
 
   // Fetch more memos with pagination support
   const fetchMoreMemos = useCallback(

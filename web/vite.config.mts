@@ -9,8 +9,25 @@ if (process.env.DEV_PROXY_SERVER && process.env.DEV_PROXY_SERVER.length > 0) {
   devProxyServer = process.env.DEV_PROXY_SERVER;
 }
 
+const normalizeBase = (raw: string | undefined): string => {
+  let base = (raw || "").trim();
+  if (base === "" || base === "/") {
+    return "/";
+  }
+  if (!base.startsWith("/")) {
+    base = `/${base}`;
+  }
+  if (!base.endsWith("/")) {
+    base = `${base}/`;
+  }
+  return base;
+};
+
+const base = normalizeBase(process.env.MEMOS_BASE_PATH || process.env.VITE_BASE_PATH);
+
 // https://vitejs.dev/config/
 export default defineConfig({
+  base,
   plugins: [react(), tailwindcss()],
   server: {
     host: "0.0.0.0",

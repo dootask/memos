@@ -8,6 +8,8 @@ import { State } from "@/types/proto/api/v1/common_pb";
 import type { Memo } from "@/types/proto/api/v1/memo_service_pb";
 import { useTranslate } from "@/utils/i18n";
 import { removeCompletedTasks } from "@/utils/markdown-manipulation";
+import { getAppOriginWithBasePath } from "@/utils/base-path";
+import { stripBasePath } from "@/utils/base-path";
 
 interface UseMemoActionHandlersOptions {
   memo: Memo;
@@ -20,7 +22,7 @@ export const useMemoActionHandlers = ({ memo, onEdit, setDeleteDialogOpen, setRe
   const t = useTranslate();
   const location = useLocation();
   const navigateTo = useNavigateTo();
-  const isInMemoDetailPage = location.pathname.startsWith(`/${memo.name}`);
+  const isInMemoDetailPage = stripBasePath(location.pathname).startsWith(`/${memo.name}`);
 
   const memoUpdatedCallback = useCallback(() => {
     userStore.setStatsStateId();
@@ -73,7 +75,7 @@ export const useMemoActionHandlers = ({ memo, onEdit, setDeleteDialogOpen, setRe
   const handleCopyLink = useCallback(() => {
     let host = instanceStore.state.profile.instanceUrl;
     if (host === "") {
-      host = window.location.origin;
+      host = getAppOriginWithBasePath();
     }
     copy(`${host}/${memo.name}`);
     toast.success(t("message.succeed-copy-link"));

@@ -1,6 +1,7 @@
 import { observer } from "mobx-react-lite";
 import { cn } from "@/lib/utils";
 import { instanceStore } from "@/store";
+import { resolveAppUrl } from "@/utils/base-path";
 import UserAvatar from "./UserAvatar";
 
 interface Props {
@@ -12,7 +13,7 @@ const MemosLogo = observer((props: Props) => {
   const { collapsed } = props;
   const instanceGeneralSetting = instanceStore.state.generalSetting;
   const title = instanceGeneralSetting.customProfile?.title || "Memos";
-  const avatarUrl = instanceGeneralSetting.customProfile?.logoUrl || "/full-logo.webp";
+  const avatarUrl = resolveAppUrl(instanceGeneralSetting.customProfile?.logoUrl, "/full-logo.webp");
 
   return (
     <div className={cn("relative w-full h-auto shrink-0", props.className)}>

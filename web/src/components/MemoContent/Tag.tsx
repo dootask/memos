@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Routes } from "@/router";
 import { memoFilterStore } from "@/store";
 import { MemoFilter, stringifyFilters } from "@/store/memoFilter";
+import { stripBasePath } from "@/utils/base-path";
 import { MemoContentContext } from "./MemoContentContext";
 
 interface TagProps extends React.HTMLAttributes<HTMLSpanElement> {
@@ -28,7 +29,7 @@ export const Tag: React.FC<TagProps> = ({ "data-tag": dataTag, children, classNa
     }
 
     // If the tag is clicked in a memo detail page, we should navigate to the memo list page.
-    if (location.pathname.startsWith("/m")) {
+    if (stripBasePath(location.pathname).startsWith("/m")) {
       const pathname = context.parentPage || Routes.ROOT;
       const searchParams = new URLSearchParams();
 

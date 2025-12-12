@@ -10,25 +10,27 @@ import useResponsiveWidth from "@/hooks/useResponsiveWidth";
 import { cn } from "@/lib/utils";
 import { Routes } from "@/router";
 import { userStore } from "@/store";
+import { stripBasePath } from "@/utils/base-path";
 
 const MainLayout = observer(() => {
   const { md, lg } = useResponsiveWidth();
   const location = useLocation();
   const currentUser = useCurrentUser();
   const [profileUserName, setProfileUserName] = useState<string | undefined>();
+  const pathname = stripBasePath(location.pathname);
 
   // Determine context based on current route
   const context: MemoExplorerContext = useMemo(() => {
-    if (location.pathname === Routes.ROOT) return "home";
-    if (location.pathname === Routes.EXPLORE) return "explore";
-    if (matchPath("/archived", location.pathname)) return "archived";
-    if (matchPath("/u/:username", location.pathname)) return "profile";
+    if (pathname === Routes.ROOT) return "home";
+    if (pathname === Routes.EXPLORE) return "explore";
+    if (matchPath("/archived", pathname)) return "archived";
+    if (matchPath("/u/:username", pathname)) return "profile";
     return "home"; // fallback
-  }, [location.pathname]);
+  }, [pathname]);
 
   // Extract username from URL for profile context
   useEffect(() => {
-    const match = matchPath("/u/:username", location.pathname);
+    const match = matchPath("/u/:username", pathname);
     if (match && context === "profile") {
       const username = match.params.username;
       if (username) {
@@ -47,7 +49,7 @@ const MainLayout = observer(() => {
     } else {
       setProfileUserName(undefined);
     }
-  }, [location.pathname, context]);
+  }, [pathname, context]);
 
   // Determine which user name to use for stats
   // - home: current user (uses backend user stats for normal memos)

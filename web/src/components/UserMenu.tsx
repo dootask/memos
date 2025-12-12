@@ -64,7 +64,7 @@ const UserMenu = observer((props: Props) => {
 
     keysToRemove.forEach((key) => localStorage.removeItem(key));
 
-    window.location.href = Routes.AUTH;
+    navigateTo(Routes.AUTH, { replace: true });
   };
 
   return (

@@ -1,7 +1,11 @@
+import { getAppOriginWithBasePath } from "@/utils/base-path";
+
 export function absolutifyLink(rel: string): string {
-  const anchor = document.createElement("a");
-  anchor.setAttribute("href", rel);
-  return anchor.href;
+  if (/^https?:\/\//i.test(rel)) {
+    return rel;
+  }
+  const normalized = rel.startsWith("/") ? rel : `/${rel}`;
+  return `${getAppOriginWithBasePath()}${normalized}`;
 }
 
 export function getSystemColorScheme() {

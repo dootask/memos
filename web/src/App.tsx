@@ -5,6 +5,7 @@ import useNavigateTo from "./hooks/useNavigateTo";
 import { useUserLocale } from "./hooks/useUserLocale";
 import { useUserTheme } from "./hooks/useUserTheme";
 import { instanceStore } from "./store";
+import { resolveAppUrl } from "./utils/base-path";
 import { cleanupExpiredOAuthState } from "./utils/oauth";
 
 const App = observer(() => {
@@ -53,7 +54,7 @@ const App = observer(() => {
 
     document.title = instanceGeneralSetting.customProfile.title;
     const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
-    link.href = instanceGeneralSetting.customProfile.logoUrl || "/logo.webp";
+    link.href = resolveAppUrl(instanceGeneralSetting.customProfile.logoUrl, "/logo.webp");
   }, [instanceGeneralSetting.customProfile]);
 
   return <Outlet />;
