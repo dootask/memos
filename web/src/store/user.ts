@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { FieldMaskSchema } from "@bufbuild/protobuf/wkt";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { uniqueId } from "lodash-es";
 import { computed, makeAutoObservable } from "mobx";
 import { authServiceClient, shortcutServiceClient, userServiceClient } from "@/grpcweb";
@@ -10,13 +11,17 @@ import {
   UserSetting,
   UserSetting_AccessTokensSetting,
   UserSetting_GeneralSetting,
+  UserSetting_GeneralSettingSchema,
   UserSetting_Key,
   UserSetting_SessionsSetting,
   UserSetting_WebhooksSetting,
   UserSettingSchema,
   UserStats,
 } from "@/types/proto/api/v1/user_service_pb";
+import { getDooTaskUserToken } from "@/utils/dootask-auth";
+import { parseDooTaskThemeAndLangFromUrl } from "@/utils/dootask-entry";
 import { buildUserSettingName } from "./common";
+import instanceStore from "./instance";
 import { createRequestKey, RequestDeduplicator, StoreError } from "./store-utils";
 
 // Helper to extract setting value from UserSetting oneof
@@ -323,36 +328,115 @@ const userStore = (() => {
 // 2. Set current user in store (required for subsequent calls)
 // 3. Fetch user settings (depends on currentUser being set)
 export const initialUserStore = async () => {
+  // Step 1: Authenticate and get current user.
+  // Note: GetCurrentSession returns Unauthenticated when there is no active session.
+  let currentUser: User | undefined;
   try {
-    // Step 1: Authenticate and get current user
-    const { user: currentUser } = await authServiceClient.getCurrentSession({});
-
-    if (!currentUser) {
-      // No authenticated user - clear state
-      userStore.state.setPartial({
-        currentUser: undefined,
-        userGeneralSetting: undefined,
-        userMapByName: {},
-      });
+    ({ user: currentUser } = await authServiceClient.getCurrentSession({}));
+  } catch (error) {
+    if (!(error instanceof ConnectError) || error.code !== Code.Unauthenticated) {
+      console.error("Failed to get current session:", error);
       return;
     }
+  }
 
-    // Step 2: Set current user in store
-    // CRITICAL: This must happen before fetchUserSettings() is called
-    // because fetchUserSettings() depends on state.currentUser being set
+  // DooTask micro-app: if not signed in yet, try exchanging DooTask user token for a memos session cookie.
+  if (!currentUser) {
+    const dooTaskToken = await getDooTaskUserToken();
+    if (dooTaskToken) {
+      try {
+        await authServiceClient.createSession({
+          credentials: {
+            case: "dootaskCredentials",
+            value: { token: dooTaskToken },
+          },
+        });
+      } catch (error) {
+        console.warn("Failed to create session with DooTask token:", error);
+      }
+
+      try {
+        ({ user: currentUser } = await authServiceClient.getCurrentSession({}));
+      } catch (error) {
+        if (!(error instanceof ConnectError) || error.code !== Code.Unauthenticated) {
+          console.error("Failed to get current session after DooTask sign-in:", error);
+          return;
+        }
+      }
+
+      // If this is the very first user provisioning (no instance owner yet),
+      // refresh the instance profile so App won't redirect to /auth/signup.
+      if (currentUser && !instanceStore.state.profile.owner) {
+        try {
+          await instanceStore.fetchInstanceProfile();
+        } catch (error) {
+          console.warn("Failed to refresh instance profile after DooTask sign-in:", error);
+        }
+      }
+    }
+  }
+
+  if (!currentUser) {
+    // No authenticated user - clear state
     userStore.state.setPartial({
-      currentUser: currentUser.name,
-      userMapByName: {
-        [currentUser.name]: currentUser,
-      },
+      currentUser: undefined,
+      userGeneralSetting: undefined,
+      userMapByName: {},
     });
+    return;
+  }
 
-    // Step 3: Fetch user settings and stats
-    // CRITICAL: This must happen after currentUser is set in step 2
-    // The fetchUserSettings() and fetchUserStats() methods check state.currentUser internally
-    await Promise.all([userStore.fetchUserSettings(), userStore.fetchUserStats()]);
+  // Step 2: Set current user in store
+  // CRITICAL: This must happen before fetchUserSettings() is called
+  // because fetchUserSettings() depends on state.currentUser being set
+  userStore.state.setPartial({
+    currentUser: currentUser.name,
+    userMapByName: {
+      [currentUser.name]: currentUser,
+    },
+  });
+
+  // Step 3: Fetch user settings (needed for applying DooTask overrides safely).
+  try {
+    await userStore.fetchUserSettings();
   } catch (error) {
-    console.error("Failed to initialize user store:", error);
+    console.error("Failed to fetch user settings:", error);
+  }
+
+  // Step 4: If URL provides theme/lang (DooTask host), apply and persist them to user general setting.
+  // This avoids "restoring" from DB to a different value after boot.
+  try {
+    const { theme: desiredTheme, locale: desiredLocale } = parseDooTaskThemeAndLangFromUrl();
+    const currentTheme = userStore.state.userGeneralSetting?.theme;
+    const currentLocale = userStore.state.userGeneralSetting?.locale;
+
+    if (desiredTheme || desiredLocale) {
+      const baseSetting = userStore.state.userGeneralSetting ?? create(UserSetting_GeneralSettingSchema, {});
+      const nextGeneralSetting = create(UserSetting_GeneralSettingSchema, {
+        locale: desiredLocale ?? baseSetting.locale,
+        memoVisibility: baseSetting.memoVisibility,
+        theme: desiredTheme ?? baseSetting.theme,
+      });
+      userStore.state.setPartial({
+        userGeneralSetting: nextGeneralSetting,
+      });
+
+      if (desiredTheme && desiredTheme !== currentTheme) {
+        await userStore.updateUserGeneralSetting({ theme: desiredTheme }, ["theme"]);
+      }
+      if (desiredLocale && desiredLocale !== currentLocale) {
+        await userStore.updateUserGeneralSetting({ locale: desiredLocale }, ["locale"]);
+      }
+    }
+  } catch (error) {
+    console.warn("Failed to persist DooTask theme/locale to user setting:", error);
+  }
+
+  // Step 5: Fetch user stats.
+  try {
+    await userStore.fetchUserStats();
+  } catch (error) {
+    console.error("Failed to fetch user stats:", error);
   }
 };
 

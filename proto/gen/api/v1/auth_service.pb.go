@@ -123,6 +123,7 @@ type CreateSessionRequest struct {
 	//
 	//	*CreateSessionRequest_PasswordCredentials_
 	//	*CreateSessionRequest_SsoCredentials
+	//	*CreateSessionRequest_DootaskCredentials
 	Credentials   isCreateSessionRequest_Credentials `protobuf_oneof:"credentials"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -183,6 +184,15 @@ func (x *CreateSessionRequest) GetSsoCredentials() *CreateSessionRequest_SSOCred
 	return nil
 }
 
+func (x *CreateSessionRequest) GetDootaskCredentials() *CreateSessionRequest_DooTaskCredentials {
+	if x != nil {
+		if x, ok := x.Credentials.(*CreateSessionRequest_DootaskCredentials); ok {
+			return x.DootaskCredentials
+		}
+	}
+	return nil
+}
+
 type isCreateSessionRequest_Credentials interface {
 	isCreateSessionRequest_Credentials()
 }
@@ -197,9 +207,16 @@ type CreateSessionRequest_SsoCredentials struct {
 	SsoCredentials *CreateSessionRequest_SSOCredentials `protobuf:"bytes,2,opt,name=sso_credentials,json=ssoCredentials,proto3,oneof"`
 }
 
+type CreateSessionRequest_DootaskCredentials struct {
+	// DooTask authentication method.
+	DootaskCredentials *CreateSessionRequest_DooTaskCredentials `protobuf:"bytes,3,opt,name=dootask_credentials,json=dootaskCredentials,proto3,oneof"`
+}
+
 func (*CreateSessionRequest_PasswordCredentials_) isCreateSessionRequest_Credentials() {}
 
 func (*CreateSessionRequest_SsoCredentials) isCreateSessionRequest_Credentials() {}
+
+func (*CreateSessionRequest_DootaskCredentials) isCreateSessionRequest_Credentials() {}
 
 type CreateSessionResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -426,6 +443,52 @@ func (x *CreateSessionRequest_SSOCredentials) GetCodeVerifier() string {
 	return ""
 }
 
+// Nested message for DooTask authentication credentials.
+type CreateSessionRequest_DooTaskCredentials struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// DooTask user token.
+	Token         string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateSessionRequest_DooTaskCredentials) Reset() {
+	*x = CreateSessionRequest_DooTaskCredentials{}
+	mi := &file_api_v1_auth_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateSessionRequest_DooTaskCredentials) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateSessionRequest_DooTaskCredentials) ProtoMessage() {}
+
+func (x *CreateSessionRequest_DooTaskCredentials) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_auth_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateSessionRequest_DooTaskCredentials.ProtoReflect.Descriptor instead.
+func (*CreateSessionRequest_DooTaskCredentials) Descriptor() ([]byte, []int) {
+	return file_api_v1_auth_service_proto_rawDescGZIP(), []int{2, 2}
+}
+
+func (x *CreateSessionRequest_DooTaskCredentials) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
 var File_api_v1_auth_service_proto protoreflect.FileDescriptor
 
 const file_api_v1_auth_service_proto_rawDesc = "" +
@@ -434,10 +497,11 @@ const file_api_v1_auth_service_proto_rawDesc = "" +
 	"\x18GetCurrentSessionRequest\"\x89\x01\n" +
 	"\x19GetCurrentSessionResponse\x12&\n" +
 	"\x04user\x18\x01 \x01(\v2\x12.memos.api.v1.UserR\x04user\x12D\n" +
-	"\x10last_accessed_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x0elastAccessedAt\"\xe3\x03\n" +
+	"\x10last_accessed_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x0elastAccessedAt\"\xfe\x04\n" +
 	"\x14CreateSessionRequest\x12k\n" +
 	"\x14password_credentials\x18\x01 \x01(\v26.memos.api.v1.CreateSessionRequest.PasswordCredentialsH\x00R\x13passwordCredentials\x12\\\n" +
-	"\x0fsso_credentials\x18\x02 \x01(\v21.memos.api.v1.CreateSessionRequest.SSOCredentialsH\x00R\x0essoCredentials\x1aW\n" +
+	"\x0fsso_credentials\x18\x02 \x01(\v21.memos.api.v1.CreateSessionRequest.SSOCredentialsH\x00R\x0essoCredentials\x12h\n" +
+	"\x13dootask_credentials\x18\x03 \x01(\v25.memos.api.v1.CreateSessionRequest.DooTaskCredentialsH\x00R\x12dootaskCredentials\x1aW\n" +
 	"\x13PasswordCredentials\x12\x1f\n" +
 	"\busername\x18\x01 \x01(\tB\x03\xe0A\x02R\busername\x12\x1f\n" +
 	"\bpassword\x18\x02 \x01(\tB\x03\xe0A\x02R\bpassword\x1a\x97\x01\n" +
@@ -445,7 +509,9 @@ const file_api_v1_auth_service_proto_rawDesc = "" +
 	"\x06idp_id\x18\x01 \x01(\x05B\x03\xe0A\x02R\x05idpId\x12\x17\n" +
 	"\x04code\x18\x02 \x01(\tB\x03\xe0A\x02R\x04code\x12&\n" +
 	"\fredirect_uri\x18\x03 \x01(\tB\x03\xe0A\x02R\vredirectUri\x12(\n" +
-	"\rcode_verifier\x18\x04 \x01(\tB\x03\xe0A\x01R\fcodeVerifierB\r\n" +
+	"\rcode_verifier\x18\x04 \x01(\tB\x03\xe0A\x01R\fcodeVerifier\x1a/\n" +
+	"\x12DooTaskCredentials\x12\x19\n" +
+	"\x05token\x18\x01 \x01(\tB\x03\xe0A\x02R\x05tokenB\r\n" +
 	"\vcredentials\"\x85\x01\n" +
 	"\x15CreateSessionResponse\x12&\n" +
 	"\x04user\x18\x01 \x01(\v2\x12.memos.api.v1.UserR\x04user\x12D\n" +
@@ -469,7 +535,7 @@ func file_api_v1_auth_service_proto_rawDescGZIP() []byte {
 	return file_api_v1_auth_service_proto_rawDescData
 }
 
-var file_api_v1_auth_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_api_v1_auth_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_api_v1_auth_service_proto_goTypes = []any{
 	(*GetCurrentSessionRequest)(nil),                 // 0: memos.api.v1.GetCurrentSessionRequest
 	(*GetCurrentSessionResponse)(nil),                // 1: memos.api.v1.GetCurrentSessionResponse
@@ -478,28 +544,30 @@ var file_api_v1_auth_service_proto_goTypes = []any{
 	(*DeleteSessionRequest)(nil),                     // 4: memos.api.v1.DeleteSessionRequest
 	(*CreateSessionRequest_PasswordCredentials)(nil), // 5: memos.api.v1.CreateSessionRequest.PasswordCredentials
 	(*CreateSessionRequest_SSOCredentials)(nil),      // 6: memos.api.v1.CreateSessionRequest.SSOCredentials
-	(*User)(nil),                  // 7: memos.api.v1.User
-	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),         // 9: google.protobuf.Empty
+	(*CreateSessionRequest_DooTaskCredentials)(nil),  // 7: memos.api.v1.CreateSessionRequest.DooTaskCredentials
+	(*User)(nil),                  // 8: memos.api.v1.User
+	(*timestamppb.Timestamp)(nil), // 9: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),         // 10: google.protobuf.Empty
 }
 var file_api_v1_auth_service_proto_depIdxs = []int32{
-	7, // 0: memos.api.v1.GetCurrentSessionResponse.user:type_name -> memos.api.v1.User
-	8, // 1: memos.api.v1.GetCurrentSessionResponse.last_accessed_at:type_name -> google.protobuf.Timestamp
-	5, // 2: memos.api.v1.CreateSessionRequest.password_credentials:type_name -> memos.api.v1.CreateSessionRequest.PasswordCredentials
-	6, // 3: memos.api.v1.CreateSessionRequest.sso_credentials:type_name -> memos.api.v1.CreateSessionRequest.SSOCredentials
-	7, // 4: memos.api.v1.CreateSessionResponse.user:type_name -> memos.api.v1.User
-	8, // 5: memos.api.v1.CreateSessionResponse.last_accessed_at:type_name -> google.protobuf.Timestamp
-	0, // 6: memos.api.v1.AuthService.GetCurrentSession:input_type -> memos.api.v1.GetCurrentSessionRequest
-	2, // 7: memos.api.v1.AuthService.CreateSession:input_type -> memos.api.v1.CreateSessionRequest
-	4, // 8: memos.api.v1.AuthService.DeleteSession:input_type -> memos.api.v1.DeleteSessionRequest
-	1, // 9: memos.api.v1.AuthService.GetCurrentSession:output_type -> memos.api.v1.GetCurrentSessionResponse
-	3, // 10: memos.api.v1.AuthService.CreateSession:output_type -> memos.api.v1.CreateSessionResponse
-	9, // 11: memos.api.v1.AuthService.DeleteSession:output_type -> google.protobuf.Empty
-	9, // [9:12] is the sub-list for method output_type
-	6, // [6:9] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	8,  // 0: memos.api.v1.GetCurrentSessionResponse.user:type_name -> memos.api.v1.User
+	9,  // 1: memos.api.v1.GetCurrentSessionResponse.last_accessed_at:type_name -> google.protobuf.Timestamp
+	5,  // 2: memos.api.v1.CreateSessionRequest.password_credentials:type_name -> memos.api.v1.CreateSessionRequest.PasswordCredentials
+	6,  // 3: memos.api.v1.CreateSessionRequest.sso_credentials:type_name -> memos.api.v1.CreateSessionRequest.SSOCredentials
+	7,  // 4: memos.api.v1.CreateSessionRequest.dootask_credentials:type_name -> memos.api.v1.CreateSessionRequest.DooTaskCredentials
+	8,  // 5: memos.api.v1.CreateSessionResponse.user:type_name -> memos.api.v1.User
+	9,  // 6: memos.api.v1.CreateSessionResponse.last_accessed_at:type_name -> google.protobuf.Timestamp
+	0,  // 7: memos.api.v1.AuthService.GetCurrentSession:input_type -> memos.api.v1.GetCurrentSessionRequest
+	2,  // 8: memos.api.v1.AuthService.CreateSession:input_type -> memos.api.v1.CreateSessionRequest
+	4,  // 9: memos.api.v1.AuthService.DeleteSession:input_type -> memos.api.v1.DeleteSessionRequest
+	1,  // 10: memos.api.v1.AuthService.GetCurrentSession:output_type -> memos.api.v1.GetCurrentSessionResponse
+	3,  // 11: memos.api.v1.AuthService.CreateSession:output_type -> memos.api.v1.CreateSessionResponse
+	10, // 12: memos.api.v1.AuthService.DeleteSession:output_type -> google.protobuf.Empty
+	10, // [10:13] is the sub-list for method output_type
+	7,  // [7:10] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_api_v1_auth_service_proto_init() }
@@ -511,6 +579,7 @@ func file_api_v1_auth_service_proto_init() {
 	file_api_v1_auth_service_proto_msgTypes[2].OneofWrappers = []any{
 		(*CreateSessionRequest_PasswordCredentials_)(nil),
 		(*CreateSessionRequest_SsoCredentials)(nil),
+		(*CreateSessionRequest_DootaskCredentials)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -518,7 +587,7 @@ func file_api_v1_auth_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_v1_auth_service_proto_rawDesc), len(file_api_v1_auth_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

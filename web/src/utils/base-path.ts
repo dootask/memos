@@ -21,6 +21,11 @@ export const resolveAppUrl = (url: string | undefined, fallbackPath: string): st
     return withBasePath(fallbackPath);
   }
   const trimmed = url.trim();
+  // DooTask plugin: allow server-provided URLs to use "{origin}" placeholder so that they always
+  // resolve to the current host origin without being affected by the app base path.
+  if (trimmed.startsWith("{origin}")) {
+    return `${window.location.origin}${trimmed.slice("{origin}".length)}`;
+  }
   if (/^(https?:)?\/\//i.test(trimmed) || trimmed.startsWith("data:") || trimmed.startsWith("blob:")) {
     return trimmed;
   }

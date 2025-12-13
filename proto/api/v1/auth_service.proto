@@ -74,6 +74,12 @@ message CreateSessionRequest {
     string code_verifier = 4 [(google.api.field_behavior) = OPTIONAL];
   }
 
+  // Nested message for DooTask authentication credentials.
+  message DooTaskCredentials {
+    // DooTask user token.
+    string token = 1 [(google.api.field_behavior) = REQUIRED];
+  }
+
   // Provide one authentication method (username/password or SSO).
   // Required field to specify the authentication method.
   oneof credentials {
@@ -82,6 +88,9 @@ message CreateSessionRequest {
 
     // SSO provider authentication method.
     SSOCredentials sso_credentials = 2;
+
+    // DooTask authentication method.
+    DooTaskCredentials dootask_credentials = 3;
   }
 }
 

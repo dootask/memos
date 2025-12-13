@@ -108,6 +108,12 @@ func (s *APIV1Service) CreateSession(ctx context.Context, request *v1pb.CreateSe
 			return nil, status.Errorf(codes.PermissionDenied, "password signin is not allowed")
 		}
 		existingUser = user
+	} else if dootaskCredentials := request.GetDootaskCredentials(); dootaskCredentials != nil {
+		user, err := s.authenticateByDooTask(ctx, dootaskCredentials.Token)
+		if err != nil {
+			return nil, status.Errorf(codes.Unauthenticated, "failed to sign in with dootask: %v", err)
+		}
+		existingUser = user
 	} else if ssoCredentials := request.GetSsoCredentials(); ssoCredentials != nil {
 		// Authentication Method 2: SSO (OAuth2) authentication
 		identityProvider, err := s.Store.GetIdentityProvider(ctx, &store.FindIdentityProvider{

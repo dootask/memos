@@ -4,7 +4,9 @@ const MEMOS_LOCALE_STORAGE_KEY = "memos-locale";
 const mapThemeParamToMemosTheme = (theme: string): string | null => {
   const normalized = theme.trim().toLowerCase();
 
-  return normalized === "dark" ? "default-dark" : "default";
+  if (normalized === "dark") return "default-dark";
+  if (normalized === "light") return "default";
+  return null;
 };
 
 const mapLangParamToMemosLocale = (lang: string): string => {
@@ -34,6 +36,24 @@ const safeSetLocalStorageItem = (key: string, value: string): void => {
   }
 };
 
+export const parseDooTaskThemeAndLangFromUrl = (): {
+  theme: string | null;
+  locale: string | null;
+} => {
+  if (typeof window === "undefined") {
+    return { theme: null, locale: null };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const themeParam = params.get("theme");
+  const langParam = params.get("lang");
+
+  const theme = themeParam ? mapThemeParamToMemosTheme(themeParam) : null;
+  const locale = langParam ? mapLangParamToMemosLocale(langParam) : null;
+
+  return { theme, locale };
+};
+
 /**
  * Applies DooTask-provided theme/lang from URL to Memos localStorage keys:
  * - theme=light|dark -> memos-theme=default|default-dark
@@ -43,21 +63,11 @@ const safeSetLocalStorageItem = (key: string, value: string): void => {
  * and optionally strips URL params, letting existing Memos startup logic apply them.
  */
 export const applyDooTaskThemeAndLangFromUrl = (): void => {
-  if (typeof window === "undefined") return;
-
-  const params = new URLSearchParams(window.location.search);
-  const theme = params.get("theme");
-  const lang = params.get("lang");
-
+  const { theme, locale } = parseDooTaskThemeAndLangFromUrl();
   if (theme) {
-    const memosTheme = mapThemeParamToMemosTheme(theme);
-    if (memosTheme) {
-      safeSetLocalStorageItem(MEMOS_THEME_STORAGE_KEY, memosTheme);
-    }
+    safeSetLocalStorageItem(MEMOS_THEME_STORAGE_KEY, theme);
   }
-
-  if (lang) {
-    const memosLocale = mapLangParamToMemosLocale(lang);
-    safeSetLocalStorageItem(MEMOS_LOCALE_STORAGE_KEY, memosLocale);
+  if (locale) {
+    safeSetLocalStorageItem(MEMOS_LOCALE_STORAGE_KEY, locale);
   }
 };
