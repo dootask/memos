@@ -81,6 +81,29 @@ export function createServer(cfg: AppConfig, logger: Logger) {
 
     const signedIn = await users.ensureSignedIn(dtUser);
 
+    const username = users.usernameFor(dtUser.userid);
+
+    // Sync DooTask theme & language onto the Memos account (best-effort).
+    await users
+      .applyPreferences(
+        username,
+        signedIn.accessToken,
+        url.searchParams.get('theme') || undefined,
+        url.searchParams.get('lang') || undefined,
+      )
+      .catch((err) => logger.warn({ err: (err as Error).message }, 'applyPreferences failed'));
+
+    // Sync the DooTask avatar once (Memos needs a data URI). Skipped for default
+    // cartoon avatars (no file) and when the Memos avatar is already set.
+    if (dtUser.avatar && !signedIn.user.avatarUrl) {
+      const dataUri = await dootask.fetchAvatarDataUri(dtUser.avatar);
+      if (dataUri) {
+        await users.setAvatar(username, dataUri).catch((err) =>
+          logger.warn({ err: (err as Error).message }, 'avatar sync failed'),
+        );
+      }
+    }
+
     // Redirect the iframe to the SPA root under the public sub-path.
     const dest = `${cfg.publicBase}${target}`.replace(/\/{2,}/g, '/');
 

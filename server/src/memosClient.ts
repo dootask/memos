@@ -9,6 +9,7 @@ export interface MemosUser {
   role: MemosRole;
   email: string;
   displayName: string;
+  avatarUrl: string;
 }
 
 export interface SignInResult {
@@ -122,7 +123,7 @@ export class MemosClient {
   /** Patch selected fields of a user. Requires an admin bearer token. */
   async updateUser(
     username: string,
-    fields: Partial<Pick<MemosUser, 'role' | 'displayName' | 'email'>> & { password?: string },
+    fields: Partial<Pick<MemosUser, 'role' | 'displayName' | 'email' | 'avatarUrl'>> & { password?: string },
     adminToken: string,
   ): Promise<boolean> {
     // The JSON body stays camelCase, but updateMask paths must be snake_case.
@@ -139,6 +140,29 @@ export class MemosClient {
       { status: res.status, msg: res.data?.message, username, mask },
       'updateUser failed',
     );
+    return false;
+  }
+
+  /**
+   * Update a user's GENERAL setting (locale / theme). The updateMask paths are
+   * relative to general_setting (e.g. `locale,theme`); requires the user's own
+   * bearer token.
+   */
+  async updateGeneralSetting(
+    username: string,
+    fields: { locale?: string; theme?: string },
+    token: string,
+  ): Promise<boolean> {
+    const mask = Object.keys(fields).join(',');
+    if (!mask) return true;
+    const name = `users/${username}/settings/GENERAL`;
+    const res = await this.http.patch(
+      `/api/v1/${name}?updateMask=${encodeURIComponent(mask)}`,
+      { name, generalSetting: fields },
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (res.status === 200) return true;
+    this.logger.warn({ status: res.status, msg: res.data?.message, username, mask }, 'updateGeneralSetting failed');
     return false;
   }
 

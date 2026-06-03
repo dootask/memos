@@ -4,6 +4,25 @@ import type { Logger } from './logger.js';
 import { MemosClient, SignInResult } from './memosClient.js';
 import { derivePassword } from './session.js';
 
+// DooTask system_theme -> Memos theme (CSS in web/public/themes).
+const THEME_MAP: Record<string, string> = {
+  light: 'default',
+  dark: 'default-dark',
+};
+
+// DooTask system_lang -> Memos locale code.
+const LOCALE_MAP: Record<string, string> = {
+  zh: 'zh-Hans',
+  'zh-cht': 'zh-Hant',
+  en: 'en',
+  ko: 'ko',
+  ja: 'ja',
+  de: 'de',
+  fr: 'fr',
+  id: 'id',
+  ru: 'ru',
+};
+
 /**
  * Maps DooTask identities onto Memos accounts: lazily creating users, keeping
  * admin roles in sync with the configured DooTask admin id list, and signing
@@ -63,6 +82,21 @@ export class UserManager {
     return result;
   }
 
+  /**
+   * Push DooTask's current theme & language onto the Memos account (authoritative
+   * — applied on every SSO entry). `themeRaw`/`langRaw` come from the iframe URL
+   * (`{system_theme}` / `{system_lang}`). Unknown values are skipped.
+   */
+  async applyPreferences(username: string, token: string, themeRaw?: string, langRaw?: string): Promise<void> {
+    const fields: { locale?: string; theme?: string } = {};
+    const theme = THEME_MAP[(themeRaw || '').toLowerCase()];
+    if (theme) fields.theme = theme;
+    const locale = LOCALE_MAP[(langRaw || '').toLowerCase()];
+    if (locale) fields.locale = locale;
+    if (Object.keys(fields).length === 0) return;
+    await this.memos.updateGeneralSetting(username, fields, token);
+  }
+
   /** Keep role / profile aligned with DooTask after a successful sign-in. */
   private async reconcile(user: DooTaskUser, result: SignInResult): Promise<void> {
     const username = this.usernameFor(user.userid);
@@ -82,6 +116,16 @@ export class UserManager {
       return;
     }
     await this.memos.updateUser(username, patch, admin);
+  }
+
+  /**
+   * Set the Memos avatar to a data URI (Memos rejects plain URLs). Isolated from
+   * profile reconciliation so a bad avatar never blocks name/role sync.
+   */
+  async setAvatar(username: string, dataUri: string): Promise<void> {
+    const admin = await this.getAdminToken();
+    if (!admin) return;
+    await this.memos.updateUser(username, { avatarUrl: dataUri }, admin);
   }
 
   /** Obtain (and cache) a bearer token for an admin account. */

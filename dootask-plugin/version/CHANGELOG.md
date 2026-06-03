@@ -4,3 +4,5 @@
 - Choose administrators during installation; they get Memos admin privileges automatically.
 - Served same-origin under /apps/memos/ via a sub-path patched Memos build.
 - Added a "Close app" entry in the Memos sidebar and hid the overlapping DooTask capsule.
+- Synced theme, language, nickname and avatar from DooTask on each entry.
+- Hid account-management controls that don't fit SSO (edit, change password, delete account, sign out).
