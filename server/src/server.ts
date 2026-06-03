@@ -4,21 +4,16 @@ import type { AppConfig } from './config.js';
 import { DooTaskClient } from './dootaskClient.js';
 import type { Logger } from './logger.js';
 import { MemosClient } from './memosClient.js';
-import { issueSession, verifySession } from './session.js';
+import { issueSession } from './session.js';
 import { UserManager } from './userManager.js';
 
-function parseCookies(header: string | undefined): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (!header) return out;
-  for (const part of header.split(';')) {
-    const idx = part.indexOf('=');
-    if (idx === -1) continue;
-    const k = part.slice(0, idx).trim();
-    const v = part.slice(idx + 1).trim();
-    if (k) out[k] = decodeURIComponent(v);
-  }
-  return out;
-}
+/** Auth-bypass endpoints blocked so every login goes through DooTask SSO. */
+const BLOCKED_PATHS = new Set([
+  '/api/v1/auth/signin',
+  '/api/v1/users',
+  '/memos.api.v1.AuthService/SignIn',
+  '/memos.api.v1.UserService/CreateUser',
+]);
 
 function bootstrapHtml(token: string, expiresAt: string, target: string): string {
   const j = (s: string) => JSON.stringify(s);
@@ -85,32 +80,32 @@ export function createServer(cfg: AppConfig, logger: Logger) {
     }
 
     const signedIn = await users.ensureSignedIn(dtUser);
+
+    // Redirect the iframe to the SPA root under the public sub-path.
+    const dest = `${cfg.publicBase}${target}`.replace(/\/{2,}/g, '/');
+
+    // Forward Memos' own refresh token so the SPA renews natively (connect
+    // `RefreshToken` reads the `memos_refresh` cookie). The session cookie keeps
+    // the DooTask→Memos mapping in case we need to re-issue server-side.
     const session = issueSession(
       { uid: dtUser.userid, un: users.usernameFor(dtUser.userid), exp: Math.floor(Date.now() / 1000) + cfg.sessionTtl },
       cfg.internalSecret,
     );
+    const cookies = [
+      `${cfg.sessionCookie}=${session}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${cfg.sessionTtl}`,
+    ];
+    if (signedIn.refreshToken) {
+      cookies.push(
+        `memos_refresh=${signedIn.refreshToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${cfg.sessionTtl}`,
+      );
+    }
 
     res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
-      'Set-Cookie': `${cfg.sessionCookie}=${session}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${cfg.sessionTtl}`,
+      'Set-Cookie': cookies,
     });
-    res.end(bootstrapHtml(signedIn.accessToken, signedIn.expiresAt, target));
-  }
-
-  async function handleRefresh(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-    const cookies = parseCookies(req.headers.cookie);
-    const session = verifySession(cookies[cfg.sessionCookie], cfg.internalSecret);
-    if (!session) {
-      sendJson(res, 401, { message: 'session expired' });
-      return;
-    }
-    const result = await memos.signIn(session.un, users.passwordFor(session.uid));
-    if (!result) {
-      sendJson(res, 401, { message: 'unable to refresh' });
-      return;
-    }
-    sendJson(res, 200, { accessToken: result.accessToken, expiresAt: result.expiresAt });
+    res.end(bootstrapHtml(signedIn.accessToken, signedIn.expiresAt, dest));
   }
 
   const server = http.createServer((req, res) => {
@@ -130,17 +125,11 @@ export function createServer(cfg: AppConfig, logger: Logger) {
       return;
     }
 
-    // Transparent token renewal owned by the proxy.
-    if (path === '/api/v1/auth/refresh' && method === 'POST') {
-      handleRefresh(req, res).catch((err) => {
-        logger.error({ err: (err as Error).message }, 'refresh failed');
-        if (!res.headersSent) sendJson(res, 500, { message: 'refresh error' });
-      });
-      return;
-    }
-
-    // Force SSO: block direct sign-in and self-registration through the public port.
-    if (method === 'POST' && (path === '/api/v1/auth/signin' || path === '/api/v1/users')) {
+    // Force SSO: block direct sign-in and self-registration. Covers both the
+    // REST gateway and the connect-RPC paths the web client actually uses.
+    // Token renewal (`AuthService/RefreshToken`) is intentionally allowed — it
+    // works off the `memos_refresh` cookie we set during SSO bootstrap.
+    if (method === 'POST' && BLOCKED_PATHS.has(path)) {
       return void sendJson(res, 403, { message: 'Direct sign-in is disabled. Open Memos from DooTask.' });
     }
 

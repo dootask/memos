@@ -16,6 +16,8 @@ export interface SignInResult {
   accessToken: string;
   /** ISO timestamp when the access token expires. */
   expiresAt: string;
+  /** The `memos_refresh` token value, so the browser can renew natively. */
+  refreshToken?: string;
 }
 
 export interface InstanceProfile {
@@ -60,7 +62,26 @@ export class MemosClient {
       user: res.data.user as MemosUser,
       accessToken: res.data.accessToken as string,
       expiresAt: (res.data.accessTokenExpiresAt as string) || '',
+      refreshToken: this.extractRefreshToken(res.headers),
     };
+  }
+
+  /**
+   * The REST gateway emits the refresh cookie as `Grpc-Metadata-Set-Cookie`
+   * (and occasionally a plain `set-cookie`). Pull the `memos_refresh` value out.
+   */
+  private extractRefreshToken(headers: Record<string, unknown>): string | undefined {
+    const candidates: string[] = [];
+    for (const key of ['grpc-metadata-set-cookie', 'set-cookie']) {
+      const v = headers[key];
+      if (Array.isArray(v)) candidates.push(...(v as string[]));
+      else if (typeof v === 'string') candidates.push(v);
+    }
+    for (const c of candidates) {
+      const m = /memos_refresh=([^;]+)/.exec(c);
+      if (m) return m[1];
+    }
+    return undefined;
   }
 
   /** Create a user. Publicly only USER role is honored; first ever user becomes ADMIN. */

@@ -27,7 +27,7 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Extract metadata
+      - name: Extract metadata (proxy)
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -37,7 +37,7 @@ jobs:
             type=ref,event=tag
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push Docker image
+      - name: Build and push proxy image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -48,6 +48,19 @@ jobs:
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Self-built Memos image (sub-path patched). Tagged by the upstream Memos
+      # version pinned in memos-server/Dockerfile and referenced by docker-compose.yml.
+      - name: Build and push Memos server image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./memos-server
+          file: ./memos-server/Dockerfile
+          push: true
+          tags: dootask/memos-server:0.29.0
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha,scope=memos-server
+          cache-to: type=gha,scope=memos-server,mode=max
 
       - name: Create dootask-plugin tar.gz package
         run: |

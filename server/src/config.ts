@@ -13,6 +13,8 @@ export interface AppConfig {
   internalSecret: string;
   /** Entry path the DooTask iframe points at to start an SSO session. */
   ssoEntryPath: string;
+  /** Public sub-path the plugin is served under (for redirects/cookies), e.g. /apps/memos. */
+  publicBase: string;
   /** Prefix for generated Memos usernames: `${prefix}${dootaskUserId}`. */
   usernamePrefix: string;
   /** Name of the proxy-issued session cookie. */
@@ -49,6 +51,7 @@ export function loadConfig(): AppConfig {
     adminUserIds: parseIds(process.env.MEMOS_ADMIN_USER_IDS),
     internalSecret,
     ssoEntryPath: process.env.SSO_ENTRY_PATH || '/dootask-sso',
+    publicBase: (process.env.PUBLIC_BASE || '/apps/memos').replace(/\/+$/, ''),
     usernamePrefix: process.env.MEMOS_USERNAME_PREFIX || 'dootask-',
     sessionCookie: process.env.SESSION_COOKIE || 'dootask_memos_sess',
     sessionTtl: Number.parseInt(process.env.SESSION_TTL || '2592000', 10), // 30 days
