@@ -28,3 +28,7 @@ menu_items:
     url: "apps/memos/dootask-sso?token={user_token}&lang={system_lang}&theme={system_theme}"
     url_type: iframe
     immersive: true
+    # Hide DooTask's floating capsule (it overlaps the Memos header). The
+    # "Close app" action lives in the Memos left sidebar instead.
+    capsule:
+      visible: false

@@ -15,6 +15,7 @@ ARG MEMOS_VERSION
 WORKDIR /memos
 RUN git clone --depth 1 --branch ${MEMOS_VERSION} https://github.com/usememos/memos.git .
 COPY patch.sh /patch.sh
+COPY overlay /overlay
 RUN apk add --no-cache perl && sh /patch.sh /memos
 
 # ---- build frontend (with sub-path baked in) ----

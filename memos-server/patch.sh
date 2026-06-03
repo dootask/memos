@@ -34,6 +34,13 @@ perl -0pi -e 's/"\/full-logo\.webp"/`\${import.meta.env.BASE_URL.replace(\/\\\/\
 # 7) PWA manifest icons -> relative so they resolve under the sub-path.
 perl -0pi -e 's/"src": "\/(android-chrome[^"]+)"/"src": "\1"/g' web/public/site.webmanifest
 
+# 8) DooTask: add a "Close app" entry to the left sidebar, just below Inbox
+#    (the DooTask capsule is hidden via plugin config, so this replaces its
+#    close action). The component lives in /overlay so the edit here is tiny.
+cp /overlay/DooTaskClose.tsx web/src/components/DooTaskClose.tsx
+perl -0pi -e 's/import UserMenu from "\.\/UserMenu";/import UserMenu from ".\/UserMenu";\nimport DooTaskClose from ".\/DooTaskClose";/' web/src/components/Navigation.tsx
+perl -0pi -e 's/\n(\s*)<\/TooltipProvider>/\n$1  <DooTaskClose collapsed={collapsed} \/>\n$1<\/TooltipProvider>/' web/src/components/Navigation.tsx
+
 echo "Applied Memos sub-path patches:"
 grep -n "base:" web/vite.config.mts | head -1
 grep -n "basename" web/src/router/index.tsx
