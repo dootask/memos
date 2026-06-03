@@ -1,4 +1,4 @@
-import { LogOutIcon } from "lucide-react";
+import { CircleChevronLeftIcon } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +32,7 @@ const DooTaskClose = ({ collapsed }: { collapsed?: boolean }) => {
 
   const lang = typeof navigator !== "undefined" ? navigator.language : "";
   const label = /^zh/i.test(lang) ? "关闭应用" : "Close app";
-  const icon = <LogOutIcon className="w-6 h-auto shrink-0" />;
+  const icon = <CircleChevronLeftIcon className="w-6 h-auto shrink-0" />;
 
   return (
     <button

@@ -21,8 +21,17 @@ perl -0pi -e 's/const router = createBrowserRouter\(routeConfig\);/const router 
 # 3) Connect-RPC transport baseUrl (two transports) -> origin + base.
 perl -0pi -e 's/baseUrl: window\.location\.origin,/baseUrl: window.location.origin + import.meta.env.BASE_URL.replace(\/\\\/\$\/, ""),/g' web/src/connect.ts
 
-# 4) Attachment/file URLs -> origin + base + /file/...
-perl -0pi -e 's/\$\{window\.location\.origin\}\/file\//\${window.location.origin}\${import.meta.env.BASE_URL.replace(\/\\\/\$\/, "")}\/file\//g' web/src/utils/attachment.ts
+# 4) Browser-facing absolute links built from `${window.location.origin}/...`
+#    -> insert the base so copied/shared links carry the sub-path. Covers memo
+#    attachment URLs, the attachment library, share links and profile links.
+#    (Idempotent within a run: once rewritten, `origin}/` no longer matches.)
+perl -0pi -e 's/\$\{window\.location\.origin\}\//\${window.location.origin}\${import.meta.env.BASE_URL.replace(\/\\\/\$\/, "")}\//g' \
+  web/src/utils/attachment.ts \
+  web/src/hooks/useAttachmentLibrary.ts \
+  web/src/hooks/useMemoShareQueries.ts \
+  web/src/pages/UserProfile.tsx
+# Memo "copy link" uses a host variable that falls back to origin.
+perl -0pi -e 's/host = window\.location\.origin;/host = window.location.origin + import.meta.env.BASE_URL.replace(\/\\\/\$\/, "");/' web/src/components/MemoActionMenu/hooks.ts
 
 # 5) SSE endpoint -> base + /api/v1/sse
 perl -0pi -e 's/fetch\("\/api\/v1\/sse"/fetch(`\${import.meta.env.BASE_URL.replace(\/\\\/\$\/, "")}\/api\/v1\/sse`/' web/src/hooks/useLiveMemoRefresh.ts
