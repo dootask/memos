@@ -1,0 +1,23 @@
+services:
+  memos-server:
+    image: neosmemo/memos:0.29.0
+    restart: always
+    volumes:
+      - ./data/memos:/var/opt/memos
+    environment:
+      - MEMOS_MODE=prod
+      - MEMOS_DRIVER=sqlite
+
+  memos-proxy:
+    image: dootask/memos:${PLUGIN_VERSION}
+    restart: always
+    depends_on:
+      - memos-server
+    ports:
+      - "${PORT}:7070"
+    environment:
+      - PROXY_PORT=7070
+      - MEMOS_UPSTREAM=http://memos-server:5230
+      - DOOTASK_URL=http://nginx
+      - MEMOS_ADMIN_USER_IDS=${MEMOS_ADMIN_USER_IDS}
+      - INTERNAL_SECRET=${INTERNAL_SECRET}

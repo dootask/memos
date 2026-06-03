@@ -1,0 +1,151 @@
+import type { AppConfig } from './config.js';
+import type { DooTaskUser } from './dootaskClient.js';
+import type { Logger } from './logger.js';
+import { MemosClient, SignInResult } from './memosClient.js';
+import { derivePassword } from './session.js';
+
+/**
+ * Maps DooTask identities onto Memos accounts: lazily creating users, keeping
+ * admin roles in sync with the configured DooTask admin id list, and signing
+ * users in with their deterministic password.
+ */
+export class UserManager {
+  private adminToken: string | null = null;
+
+  constructor(
+    private readonly memos: MemosClient,
+    private readonly cfg: AppConfig,
+    private readonly logger: Logger,
+  ) {}
+
+  usernameFor(dootaskUserId: number): string {
+    return `${this.cfg.usernamePrefix}${dootaskUserId}`;
+  }
+
+  passwordFor(dootaskUserId: number): string {
+    return derivePassword(dootaskUserId, this.cfg.internalSecret);
+  }
+
+  isAdmin(dootaskUserId: number): boolean {
+    return this.cfg.adminUserIds.includes(dootaskUserId);
+  }
+
+  /** Sign in (creating the account first if needed) and return Memos tokens. */
+  async ensureSignedIn(user: DooTaskUser): Promise<SignInResult> {
+    const username = this.usernameFor(user.userid);
+    const password = this.passwordFor(user.userid);
+
+    let result = await this.memos.signIn(username, password);
+    if (!result) {
+      // First time we see this user (or password drift) — create then retry.
+      await this.memos.createUser({
+        username,
+        password,
+        displayName: user.nickname,
+        email: user.email,
+      });
+      result = await this.memos.signIn(username, password);
+    }
+    if (!result) {
+      // Account exists with a different password (e.g. created out-of-band).
+      // Reset it via admin and retry once.
+      const admin = await this.getAdminToken();
+      if (admin) {
+        await this.memos.updateUser(username, { password }, admin);
+        result = await this.memos.signIn(username, password);
+      }
+    }
+    if (!result) {
+      throw new Error(`unable to sign in memos user ${username}`);
+    }
+
+    await this.reconcile(user, result);
+    return result;
+  }
+
+  /** Keep role / profile aligned with DooTask after a successful sign-in. */
+  private async reconcile(user: DooTaskUser, result: SignInResult): Promise<void> {
+    const username = this.usernameFor(user.userid);
+    const wantAdmin = this.isAdmin(user.userid);
+    const isAdmin = result.user.role === 'ADMIN' || result.user.role === 'HOST';
+
+    const patch: Record<string, string> = {};
+    if (wantAdmin && !isAdmin) patch.role = 'ADMIN';
+    if (!wantAdmin && result.user.role === 'ADMIN') patch.role = 'USER';
+    if (user.nickname && user.nickname !== result.user.displayName) patch.displayName = user.nickname;
+    if (user.email && user.email !== result.user.email) patch.email = user.email;
+    if (Object.keys(patch).length === 0) return;
+
+    const admin = await this.getAdminToken();
+    if (!admin) {
+      this.logger.warn({ username }, 'no admin token available to reconcile user');
+      return;
+    }
+    await this.memos.updateUser(username, patch, admin);
+  }
+
+  /** Obtain (and cache) a bearer token for an admin account. */
+  private async getAdminToken(): Promise<string | null> {
+    if (this.adminToken) return this.adminToken;
+    for (const adminId of this.cfg.adminUserIds) {
+      const r = await this.memos.signIn(this.usernameFor(adminId), this.passwordFor(adminId));
+      if (r && (r.user.role === 'ADMIN' || r.user.role === 'HOST')) {
+        this.adminToken = r.accessToken;
+        return this.adminToken;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Seed admin accounts at startup so the instance is initialized with the right
+   * admins before any regular user logs in. Best-effort: failures are logged,
+   * not fatal (Memos may not be ready yet on first boot).
+   */
+  async seedAdmins(): Promise<void> {
+    if (this.cfg.adminUserIds.length === 0) {
+      this.logger.info('no admin user ids configured; skipping admin seeding');
+      return;
+    }
+
+    let profile;
+    try {
+      profile = await this.memos.getInstanceProfile();
+    } catch (err) {
+      this.logger.warn({ err: (err as Error).message }, 'memos not reachable yet; deferring seeding');
+      return;
+    }
+
+    // Initialize the instance with the first admin so it owns the ADMIN role.
+    if (!profile.admin) {
+      const firstId = this.cfg.adminUserIds[0];
+      const created = await this.memos.createUser({
+        username: this.usernameFor(firstId),
+        password: this.passwordFor(firstId),
+        displayName: `DooTask Admin ${firstId}`,
+      });
+      this.logger.info({ firstId, created: Boolean(created) }, 'seeded primary memos admin');
+    }
+
+    const adminToken = await this.getAdminToken();
+    if (!adminToken) {
+      this.logger.warn('could not obtain admin token during seeding');
+      return;
+    }
+
+    // Ensure every configured admin exists and holds the ADMIN role.
+    for (const adminId of this.cfg.adminUserIds) {
+      const username = this.usernameFor(adminId);
+      const password = this.passwordFor(adminId);
+      let memUser = await this.memos.getUser(username, adminToken);
+      if (!memUser) {
+        await this.memos.createUser({ username, password, displayName: `DooTask Admin ${adminId}` });
+        memUser = await this.memos.getUser(username, adminToken);
+      }
+      if (memUser && memUser.role !== 'ADMIN' && memUser.role !== 'HOST') {
+        await this.memos.updateUser(username, { role: 'ADMIN' }, adminToken);
+      }
+    }
+    this.logger.info({ admins: this.cfg.adminUserIds }, 'admin seeding complete');
+  }
+}

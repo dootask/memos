@@ -1,0 +1,42 @@
+fields:
+  - name: PORT
+    label:
+      en: Port
+      zh: 端口
+    placeholder:
+      en: Service port exposed for Memos
+      zh: Memos 对外服务端口
+    description:
+      en: Ensure this port is open for external access.
+      zh: 请确保该端口已开放外网访问。
+    type: number
+    default: 5230
+  - name: MEMOS_ADMIN_USER_IDS
+    label:
+      en: Administrators
+      zh: 管理员
+    placeholder:
+      en: Select users to grant Memos admin privileges
+      zh: 选择授予 Memos 管理员权限的用户
+    description:
+      en: These DooTask users become Memos administrators; everyone else signs in as a regular user.
+      zh: 选中的 DooTask 用户将成为 Memos 管理员，其余用户以普通成员身份登录。
+    type: user_select
+  - name: INTERNAL_SECRET
+    label:
+      en: Internal Secret
+      zh: 内部密钥
+    description:
+      en: Used to derive account passwords and sign sessions. Keep it stable; do not change after install.
+      zh: 用于派生账号密码与签名会话，安装后请保持不变。
+    type: password
+    default: $random:48
+
+menu_items:
+  - location: application
+    label:
+      en: Memos
+      zh: Memos 笔记
+    url: ":{PORT}/dootask-sso?token={user_token}&lang={system_lang}&theme={system_theme}"
+    url_type: iframe
+    immersive: true

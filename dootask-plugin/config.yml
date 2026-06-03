@@ -1,0 +1,14 @@
+name:
+  en: Memos
+  zh: Memos 笔记
+description:
+  en: A privacy-first, lightweight note-taking service with DooTask single sign-on — users are auto-registered and logged in.
+  zh: 隐私优先的轻量级笔记服务，集成 DooTask 单点登录，用户自动注册并免密登录。
+tags:
+  - Notes
+  - Productivity
+  - Knowledge
+author: DooTask
+website: https://www.usememos.com
+github: https://github.com/dootask/memos-plugin
+document: https://www.usememos.com/docs
