@@ -7,6 +7,13 @@ import { cn } from "@/lib/utils";
 // dependency. This replaces DooTask's floating "capsule" close button, which is
 // hidden via the plugin config because it overlaps the Memos header.
 function closeDooTaskApp() {
+  // Collapse the mobile navigation drawer first (it's a Radix Sheet that closes
+  // on Escape) — closing the app alone would leave it visibly open.
+  try {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  } catch {
+    // ignore
+  }
   try {
     window.parent.postMessage(
       {
