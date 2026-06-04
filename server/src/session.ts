@@ -46,9 +46,15 @@ export function verifySession(token: string | undefined, secret: string): Sessio
 }
 
 /**
- * Deterministic Memos password for a DooTask user. Derived from the shared
- * secret so the proxy can always sign the user back in without storing it.
+ * Deterministic Memos password for an arbitrary key (a DooTask user id, or the
+ * service-admin). Derived from the shared secret so the proxy can always sign in
+ * without storing passwords.
  */
+export function derivePasswordKey(key: string, secret: string): string {
+  return createHmac('sha256', secret).update(`memos-pw:${key}`).digest('hex').slice(0, 32);
+}
+
+/** Deterministic Memos password for a DooTask user. */
 export function derivePassword(dootaskUserId: number, secret: string): string {
-  return createHmac('sha256', secret).update(`memos-pw:${dootaskUserId}`).digest('hex').slice(0, 32);
+  return derivePasswordKey(String(dootaskUserId), secret);
 }

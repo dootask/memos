@@ -2,7 +2,7 @@ import type { AppConfig } from './config.js';
 import type { DooTaskUser } from './dootaskClient.js';
 import type { Logger } from './logger.js';
 import { MemosClient, SignInResult } from './memosClient.js';
-import { derivePassword } from './session.js';
+import { derivePassword, derivePasswordKey } from './session.js';
 
 // DooTask system_theme -> Memos theme (CSS in web/public/themes).
 const THEME_MAP: Record<string, string> = {
@@ -36,13 +36,18 @@ const LOCALE_MAP: Record<string, string> = {
  * users in with their deterministic password.
  */
 export class UserManager {
-  private adminToken: string | null = null;
-
   constructor(
     private readonly memos: MemosClient,
     private readonly cfg: AppConfig,
     private readonly logger: Logger,
   ) {}
+
+  /** Dedicated internal admin the proxy uses for all privileged operations. Not
+   * a DooTask user, always present and ADMIN, so admin actions never depend on a
+   * particular DooTask admin being configured (admins can be fully rotated). */
+  private get serviceAdminUsername(): string {
+    return `${this.cfg.usernamePrefix}admin`;
+  }
 
   usernameFor(dootaskUserId: number): string {
     return `${this.cfg.usernamePrefix}${dootaskUserId}`;
@@ -50,6 +55,10 @@ export class UserManager {
 
   passwordFor(dootaskUserId: number): string {
     return derivePassword(dootaskUserId, this.cfg.internalSecret);
+  }
+
+  private serviceAdminPassword(): string {
+    return derivePasswordKey('service-admin', this.cfg.internalSecret);
   }
 
   isAdmin(dootaskUserId: number): boolean {
@@ -141,56 +150,75 @@ export class UserManager {
     await this.memos.updateUser(username, { avatarUrl: dataUri }, admin);
   }
 
-  /** Obtain (and cache) a bearer token for an admin account. */
+  /**
+   * Obtain a fresh bearer token for a Memos admin. Prefers the dedicated service
+   * admin; falls back to any configured DooTask admin (to bootstrap the service
+   * admin on a pre-existing instance). Not cached — access tokens are short-lived
+   * and admin operations are infrequent.
+   */
   private async getAdminToken(): Promise<string | null> {
-    if (this.adminToken) return this.adminToken;
+    const svc = await this.memos.signIn(this.serviceAdminUsername, this.serviceAdminPassword());
+    if (svc && (svc.user.role === 'ADMIN' || svc.user.role === 'HOST')) {
+      return svc.accessToken;
+    }
     for (const adminId of this.cfg.adminUserIds) {
       const r = await this.memos.signIn(this.usernameFor(adminId), this.passwordFor(adminId));
       if (r && (r.user.role === 'ADMIN' || r.user.role === 'HOST')) {
-        this.adminToken = r.accessToken;
-        return this.adminToken;
+        return r.accessToken;
       }
     }
     return null;
   }
 
   /**
-   * Seed admin accounts at startup so the instance is initialized with the right
-   * admins before any regular user logs in. Best-effort: failures are logged,
-   * not fatal (Memos may not be ready yet on first boot).
+   * Ensure the dedicated service admin exists and holds the ADMIN role. On a
+   * fresh instance it becomes the first user (auto-ADMIN); on an existing
+   * instance it is created and promoted via a fallback admin token.
    */
-  async seedAdmins(): Promise<void> {
-    if (this.cfg.adminUserIds.length === 0) {
-      this.logger.info('no admin user ids configured; skipping admin seeding');
-      return;
+  private async ensureServiceAdmin(): Promise<string | null> {
+    const username = this.serviceAdminUsername;
+    const password = this.serviceAdminPassword();
+
+    const profile = await this.memos.getInstanceProfile();
+    if (!profile.admin) {
+      // First user on a fresh instance automatically becomes ADMIN.
+      await this.memos.createUser({ username, password, displayName: 'DooTask Service Admin' });
     }
 
-    let profile;
+    const token = await this.getAdminToken();
+    if (!token) return null;
+
+    // On a pre-existing instance the service admin may not exist / not be admin.
+    let memUser = await this.memos.getUser(username, token);
+    if (!memUser) {
+      await this.memos.createUser({ username, password, displayName: 'DooTask Service Admin' });
+      memUser = await this.memos.getUser(username, token);
+    }
+    if (memUser && memUser.role !== 'ADMIN' && memUser.role !== 'HOST') {
+      await this.memos.updateUser(username, { role: 'ADMIN' }, token);
+    }
+    // Re-fetch a token that is guaranteed to be the service admin's.
+    return this.getAdminToken();
+  }
+
+  /**
+   * Seed accounts at startup: establish the service admin, then ensure every
+   * configured DooTask admin exists and holds the ADMIN role. Best-effort:
+   * failures are logged, not fatal (Memos may not be ready yet on first boot).
+   */
+  async seedAdmins(): Promise<void> {
+    let adminToken: string | null;
     try {
-      profile = await this.memos.getInstanceProfile();
+      adminToken = await this.ensureServiceAdmin();
     } catch (err) {
       this.logger.warn({ err: (err as Error).message }, 'memos not reachable yet; deferring seeding');
       return;
     }
-
-    // Initialize the instance with the first admin so it owns the ADMIN role.
-    if (!profile.admin) {
-      const firstId = this.cfg.adminUserIds[0];
-      const created = await this.memos.createUser({
-        username: this.usernameFor(firstId),
-        password: this.passwordFor(firstId),
-        displayName: `DooTask Admin ${firstId}`,
-      });
-      this.logger.info({ firstId, created: Boolean(created) }, 'seeded primary memos admin');
-    }
-
-    const adminToken = await this.getAdminToken();
     if (!adminToken) {
-      this.logger.warn('could not obtain admin token during seeding');
+      this.logger.warn('could not establish a service admin token during seeding');
       return;
     }
 
-    // Ensure every configured admin exists and holds the ADMIN role.
     for (const adminId of this.cfg.adminUserIds) {
       const username = this.usernameFor(adminId);
       const password = this.passwordFor(adminId);
