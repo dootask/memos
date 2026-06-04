@@ -36,11 +36,12 @@ perl -0pi -e 's/host = window\.location\.origin;/host = window.location.origin +
 # 5) SSE endpoint -> base + /api/v1/sse
 perl -0pi -e 's/fetch\("\/api\/v1\/sse"/fetch(`\${import.meta.env.BASE_URL.replace(\/\\\/\$\/, "")}\/api\/v1\/sse`/' web/src/hooks/useLiveMemoRefresh.ts
 
-# 6) Default logo fallback ("/full-logo.webp") -> base-aware.
-perl -0pi -e 's/"\/full-logo\.webp"/`\${import.meta.env.BASE_URL.replace(\/\\\/\$\/, "")}\/full-logo.webp`/g' \
-  web/src/components/MemosLogo.tsx web/src/components/NavigationDrawer.tsx
-# UserAvatar: a synced avatar is stored by Memos as a root-relative "/file/..."
-# path; prefix it with the base (data-URI avatars are left as-is).
+# 6) Avatars/logos are all rendered through UserAvatar, so prefix the base in
+#    that single place: a synced avatar stored as a root-relative "/file/..."
+#    path (and the "/full-logo.webp" fallback) get the base; data-URI and
+#    absolute (http) avatars are left as-is. MemosLogo / NavigationDrawer pass
+#    their "/full-logo.webp" fallback through UserAvatar, so they need no edit
+#    (prefixing them here too would double the prefix).
 perl -0pi -e 's/src=\{avatarUrl \|\| "\/full-logo\.webp"\}/src={(avatarUrl \&\& avatarUrl.startsWith("\/") ? `\${import.meta.env.BASE_URL.replace(\/\\\/\$\/, "")}\${avatarUrl}` : avatarUrl) || `\${import.meta.env.BASE_URL.replace(\/\\\/\$\/, "")}\/full-logo.webp`}/' web/src/components/UserAvatar.tsx
 
 # 7) PWA manifest icons -> relative so they resolve under the sub-path.
