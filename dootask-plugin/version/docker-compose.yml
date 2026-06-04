@@ -3,7 +3,7 @@ services:
     image: dootask/memos-server:0.29.0
     restart: always
     volumes:
-      - ./data/memos:/var/opt/memos
+      - memos-data:/var/opt/memos
     environment:
       - MEMOS_MODE=prod
       - MEMOS_DRIVER=sqlite
@@ -20,3 +20,6 @@ services:
       - PUBLIC_BASE=/apps/memos
       - MEMOS_ADMIN_USER_IDS=${MEMOS_ADMIN_USER_IDS}
       - INTERNAL_SECRET=${INTERNAL_SECRET}
+
+volumes:
+  memos-data:

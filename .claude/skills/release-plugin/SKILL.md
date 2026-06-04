@@ -88,7 +88,7 @@ gh run list --workflow=release.yml --limit 3
 gh run watch
 ```
 
-或浏览器打开：`https://github.com/dootask/memos-plugin/actions`
+或浏览器打开：`https://github.com/dootask/memos/actions`
 
 ### 7. 验证发布结果
 
