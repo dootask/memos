@@ -46,6 +46,8 @@ perl -0pi -e 's/src=\{avatarUrl \|\| "\/full-logo\.webp"\}/src={(avatarUrl \&\& 
 
 # 7) PWA manifest icons -> relative so they resolve under the sub-path.
 perl -0pi -e 's/"src": "\/(android-chrome[^"]+)"/"src": "\1"/g' web/public/site.webmanifest
+# The About page renders a root-absolute "/logo.webp" directly (not via UserAvatar).
+perl -0pi -e 's/src="\/logo\.webp"/src={`\${import.meta.env.BASE_URL.replace(\/\\\/\$\/, "")}\/logo.webp`}/' web/src/pages/About.tsx
 
 # 8) DooTask: add a "Close app" entry to the left sidebar, just below Inbox
 #    (the DooTask capsule is hidden via plugin config, so this replaces its
