@@ -166,6 +166,21 @@ export class MemosClient {
     return false;
   }
 
+  /** Fetch the SPA index.html (uncompressed) so the proxy can inject into it. */
+  async fetchIndexHtml(): Promise<string | null> {
+    try {
+      const res = await this.http.get('/', {
+        responseType: 'arraybuffer',
+        headers: { Accept: 'text/html', 'Accept-Encoding': 'identity' },
+      });
+      if (res.status !== 200) return null;
+      return Buffer.from(res.data as ArrayBuffer).toString('utf8');
+    } catch (error) {
+      this.logger.warn({ err: (error as Error).message }, 'fetchIndexHtml failed');
+      return null;
+    }
+  }
+
   /** Stream-proxy helper: expose the raw upstream base for the reverse proxy. */
   static isConnError(error: unknown): boolean {
     return isAxiosError(error) && !error.response;

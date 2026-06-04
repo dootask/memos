@@ -25,7 +25,7 @@ menu_items:
     label:
       en: Memos
       zh: Memos 笔记
-    url: "apps/memos/dootask-sso?token={user_token}&lang={system_lang}&theme={system_theme}"
+    url: "apps/memos/?token={user_token}&lang={system_lang}&theme={system_theme}"
     url_type: iframe
     immersive: true
     # Hide DooTask's floating capsule (it overlaps the Memos header). The

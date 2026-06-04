@@ -10,6 +10,13 @@ const THEME_MAP: Record<string, string> = {
   dark: 'default-dark',
 };
 
+// Memos theme -> background color (from web/src/utils/theme.ts), for the splash.
+const THEME_BG: Record<string, string> = {
+  default: '#faf9f5',
+  'default-dark': '#1d1f23',
+  paper: '#f5ede4',
+};
+
 // DooTask system_lang -> Memos locale code.
 const LOCALE_MAP: Record<string, string> = {
   zh: 'zh-Hans',
@@ -88,13 +95,19 @@ export class UserManager {
    * (`{system_theme}` / `{system_lang}`). Unknown values are skipped.
    */
   async applyPreferences(username: string, token: string, themeRaw?: string, langRaw?: string): Promise<void> {
+    const { theme, locale } = this.mapPreferences(themeRaw, langRaw);
     const fields: { locale?: string; theme?: string } = {};
-    const theme = THEME_MAP[(themeRaw || '').toLowerCase()];
     if (theme) fields.theme = theme;
-    const locale = LOCALE_MAP[(langRaw || '').toLowerCase()];
     if (locale) fields.locale = locale;
     if (Object.keys(fields).length === 0) return;
     await this.memos.updateGeneralSetting(username, fields, token);
+  }
+
+  /** Map DooTask theme/lang to Memos theme, locale and a splash background. */
+  mapPreferences(themeRaw?: string, langRaw?: string): { theme?: string; locale?: string; bg: string } {
+    const theme = THEME_MAP[(themeRaw || '').toLowerCase()];
+    const locale = LOCALE_MAP[(langRaw || '').toLowerCase()];
+    return { theme, locale, bg: THEME_BG[theme || 'default'] };
   }
 
   /** Keep role / profile aligned with DooTask after a successful sign-in. */
