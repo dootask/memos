@@ -1,5 +1,5 @@
-### Added
-- Added an "Open in new window" entry on desktop, alongside "Close app".
-
 ### Fixed
-- Fixed a 404 after the session timed out: the app now silently re-authenticates.
+- The mobile app status bar no longer overlaps the top of the page.
+
+### Improved
+- A timed-out session now re-authenticates through DooTask automatically instead of asking you to reopen the app.
