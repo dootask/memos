@@ -1,10 +1,13 @@
-import { CircleChevronLeftIcon, SquareArrowOutUpRightIcon } from "lucide-react";
+import { isMainElectron } from "@dootask/tools";
+import { CircleChevronLeftIcon, PictureInPicture2Icon } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 // Talk to the embedding DooTask shell. Mirrors @dootask/tools' postMessage
-// protocol so we avoid the dependency. These actions replace DooTask's floating
-// "capsule", which is hidden by the plugin config because it overlaps the header.
+// protocol (fire-and-forget) so these don't depend on the ready handshake. They
+// replace DooTask's floating "capsule", hidden by the plugin config because it
+// overlaps the Memos header.
 function callParent(method: string, args: unknown[]) {
   try {
     window.parent.postMessage(
@@ -33,10 +36,18 @@ function dismissDrawer() {
 }
 
 const inDooTask = typeof window !== "undefined" && window.self !== window.top;
-const isDesktop = () =>
-  typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(min-width: 768px)").matches;
 
 const DooTaskActions = ({ collapsed }: { collapsed?: boolean }) => {
+  // "Open in new window" only applies in the desktop client's main window
+  // (not the web client, not an already popped-out window): isMainElectron.
+  const [canPopout, setCanPopout] = useState(false);
+  useEffect(() => {
+    if (!inDooTask) return;
+    isMainElectron()
+      .then(setCanPopout)
+      .catch(() => setCanPopout(false));
+  }, []);
+
   if (!inDooTask) return null;
 
   // Follow the synced Memos language (falls back to the browser language).
@@ -73,10 +84,9 @@ const DooTaskActions = ({ collapsed }: { collapsed?: boolean }) => {
 
   return (
     <>
-      {/* "Open in new window" (popout) only makes sense on a desktop window. */}
-      {isDesktop() &&
+      {canPopout &&
         renderItem(
-          <SquareArrowOutUpRightIcon className="w-6 h-auto shrink-0" />,
+          <PictureInPicture2Icon className="w-6 h-auto shrink-0" />,
           zh ? "新窗口打开" : "Open in new window",
           () => callParent("popoutWindow", [{}]),
         )}

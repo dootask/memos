@@ -26,6 +26,8 @@ COPY --from=src /memos /memos
 RUN corepack enable
 WORKDIR /memos/web
 RUN pnpm install --frozen-lockfile
+# DooTask integration helper (used by the patched sidebar for isMainElectron).
+RUN pnpm add @dootask/tools@1.2.0
 # `release` outputs to ../server/router/frontend/dist for the Go embed.
 RUN BASE_PATH=${BASE_PATH} pnpm release
 
