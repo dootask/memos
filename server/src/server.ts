@@ -4,7 +4,7 @@ import type { AppConfig } from './config.js';
 import { DooTaskClient, DooTaskUser } from './dootaskClient.js';
 import type { Logger } from './logger.js';
 import { MemosClient, SignInResult } from './memosClient.js';
-import { issueSession } from './session.js';
+import { issueSession, verifySession } from './session.js';
 import { UserManager } from './userManager.js';
 
 /** Auth-bypass endpoints blocked so every login goes through DooTask SSO. */
@@ -18,29 +18,41 @@ const BLOCKED_PATHS = new Set([
 interface Prefs {
   theme?: string;
   locale?: string;
-  bg: string;
 }
 
-/** Browser bootstrap values produced by a successful SSO sign-in. */
-interface SsoBootstrap {
+/** Browser bootstrap produced by a successful sign-in. */
+interface Bootstrap {
   signedIn: SignInResult;
   prefs: Prefs;
   cookies: string[];
 }
 
-/** Inline script + splash injected into Memos' index.html for a flash-free load. */
-function buildInjection(token: string, expiresAt: string, prefs: Prefs): { head: string; body: string } {
-  const j = (s: string) => JSON.stringify(s);
+const j = (s: string) => JSON.stringify(s);
+
+/** JS that resolves the themed background from a known theme or localStorage. */
+const BG_RESOLVER =
+  `var __t=THEME_EXPR||(function(){try{return localStorage.getItem('memos-theme')}catch(e){return null}})();` +
+  `var __bg=({"default":"#faf9f5","default-dark":"#1d1f23","paper":"#f5ede4"})[__t]||"#faf9f5";`;
+
+/**
+ * Inline script + splash injected into Memos' index.html for a flash-free,
+ * single-load sign-in. `theme`/`locale` are known on a token entry and omitted on
+ * a session re-mint (the page reads them from localStorage instead).
+ */
+function injectIndexHtml(html: string, token: string, expiresAt: string, prefs: Prefs): string {
+  const themeExpr = prefs.theme ? j(prefs.theme) : 'null';
   const head =
     `<script>(function(){try{` +
     `localStorage.setItem('memos_access_token',${j(token)});` +
     `localStorage.setItem('memos_token_expires_at',${j(expiresAt)});` +
     (prefs.theme ? `localStorage.setItem('memos-theme',${j(prefs.theme)});` : '') +
     (prefs.locale ? `localStorage.setItem('memos-locale',${j(prefs.locale)});` : '') +
-    `document.documentElement.style.background=${j(prefs.bg)};` +
+    BG_RESOLVER.replace('THEME_EXPR', themeExpr) +
+    `document.documentElement.style.background=__bg;` +
+    `document.documentElement.style.setProperty('--dtbg',__bg);` +
     `if(history.replaceState)history.replaceState({},'',location.pathname);` +
     `}catch(e){}})();</script>` +
-    `<style>#dootask-splash{position:fixed;inset:0;z-index:2147483647;background:${prefs.bg};` +
+    `<style>#dootask-splash{position:fixed;inset:0;z-index:2147483647;background:var(--dtbg,#faf9f5);` +
     `display:flex;align-items:center;justify-content:center;transition:opacity .25s}` +
     `#dootask-splash .s{width:28px;height:28px;border:3px solid rgba(127,127,127,.25);` +
     `border-top-color:rgba(127,127,127,.85);border-radius:50%;animation:dtspin .8s linear infinite}` +
@@ -53,29 +65,33 @@ function buildInjection(token: string, expiresAt: string, prefs: Prefs): { head:
     `setTimeout(rm,8000);}` +
     `if(document.readyState!=='loading')start();else document.addEventListener('DOMContentLoaded',start);})();</script>`;
   const body = `<div id="dootask-splash"><div class="s"></div></div>`;
-  return { head, body };
+  return html.replace(/<head[^>]*>/i, (m) => `${m}${head}`).replace(/<\/body>/i, `${body}</body>`);
 }
 
-function injectIndexHtml(html: string, token: string, expiresAt: string, prefs: Prefs): string {
-  const { head, body } = buildInjection(token, expiresAt, prefs);
-  return html
-    .replace(/<head[^>]*>/i, (m) => `${m}${head}`)
-    .replace(/<\/body>/i, `${body}</body>`);
-}
-
-/** Minimal redirect bootstrap, kept as a fallback for the /dootask-sso entry. */
-function bootstrapHtml(token: string, expiresAt: string, prefs: Prefs, target: string): string {
-  const j = (s: string) => JSON.stringify(s);
+/** Shown when the session is gone and we have no token — breaks any reload loop. */
+function sessionExpiredHtml(): string {
   return `<!doctype html><html><head><meta charset="utf-8">
-<title>Memos</title></head>
-<body style="margin:0;height:100vh;background:${prefs.bg}">
-<script>(function(){try{
-localStorage.setItem('memos_access_token',${j(token)});
-localStorage.setItem('memos_token_expires_at',${j(expiresAt)});
-${prefs.theme ? `localStorage.setItem('memos-theme',${j(prefs.theme)});` : ''}
-${prefs.locale ? `localStorage.setItem('memos-locale',${j(prefs.locale)});` : ''}
-}catch(e){}location.replace(${j(target)});})();</script>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Memos</title>
+<script>try{var t=localStorage.getItem('memos-theme');document.documentElement.style.background=({"default":"#faf9f5","default-dark":"#1d1f23","paper":"#f5ede4"})[t]||"#faf9f5";}catch(e){}</script>
+<style>body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui;color:#888}</style>
+</head><body>
+<div id="m"></div>
+<script>
+var zh=/^zh/i.test(navigator.language||'');
+document.getElementById('m').textContent = zh ? '会话已过期，请从 DooTask 重新打开 Memos。' : 'Session expired. Please reopen Memos from DooTask.';
+</script>
 </body></html>`;
+}
+
+function readCookie(req: http.IncomingMessage, name: string): string | undefined {
+  const header = req.headers.cookie;
+  if (!header) return undefined;
+  for (const part of header.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx === -1) continue;
+    if (part.slice(0, idx).trim() === name) return part.slice(idx + 1).trim();
+  }
+  return undefined;
 }
 
 export function createServer(cfg: AppConfig, logger: Logger) {
@@ -104,18 +120,31 @@ export function createServer(cfg: AppConfig, logger: Logger) {
     res.writeHead(status, { 'Content-Type': type });
     res.end(body);
   };
-
   const sendJson = (res: http.ServerResponse, status: number, obj: unknown) => {
     res.writeHead(status, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(obj));
   };
+  const sendHtml = (res: http.ServerResponse, body: string, cookies?: string[]) => {
+    const headers: http.OutgoingHttpHeaders = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' };
+    if (cookies) headers['Set-Cookie'] = cookies;
+    res.writeHead(200, headers);
+    res.end(body);
+  };
 
-  /**
-   * Resolve the DooTask token, provision/sign in the Memos user, sync prefs and
-   * avatar, and produce the browser bootstrap (tokens + cookies). Returns null
-   * when the token is missing/invalid.
-   */
-  async function runSso(url: URL): Promise<SsoBootstrap | null> {
+  function buildCookies(uid: number, un: string, refreshToken?: string): string[] {
+    const session = issueSession(
+      { uid, un, exp: Math.floor(Date.now() / 1000) + cfg.sessionTtl },
+      cfg.internalSecret,
+    );
+    const cookies = [`${cfg.sessionCookie}=${session}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${cfg.sessionTtl}`];
+    if (refreshToken) {
+      cookies.push(`memos_refresh=${refreshToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${cfg.sessionTtl}`);
+    }
+    return cookies;
+  }
+
+  /** Full SSO from a DooTask token: provision, sync prefs + avatar, build bootstrap. */
+  async function bootstrapFromToken(url: URL): Promise<Bootstrap | null> {
     const dtUser: DooTaskUser | null = await dootask.resolveUser(url.searchParams.get('token') || '');
     if (!dtUser) return null;
 
@@ -123,7 +152,7 @@ export function createServer(cfg: AppConfig, logger: Logger) {
     const username = users.usernameFor(dtUser.userid);
     const themeRaw = url.searchParams.get('theme') || undefined;
     const langRaw = url.searchParams.get('lang') || undefined;
-    const prefs = users.mapPreferences(themeRaw, langRaw);
+    const { theme, locale } = users.mapPreferences(themeRaw, langRaw);
 
     await users
       .applyPreferences(username, signedIn.accessToken, themeRaw, langRaw)
@@ -132,50 +161,40 @@ export function createServer(cfg: AppConfig, logger: Logger) {
     if (dtUser.avatar && !signedIn.user.avatarUrl) {
       const dataUri = await dootask.fetchAvatarDataUri(dtUser.avatar);
       if (dataUri) {
-        await users
-          .setAvatar(username, dataUri)
-          .catch((err) => logger.warn({ err: (err as Error).message }, 'avatar sync failed'));
+        await users.setAvatar(username, dataUri).catch((err) => logger.warn({ err: (err as Error).message }, 'avatar sync failed'));
       }
     }
 
-    const session = issueSession(
-      { uid: dtUser.userid, un: username, exp: Math.floor(Date.now() / 1000) + cfg.sessionTtl },
-      cfg.internalSecret,
-    );
-    const cookies = [`${cfg.sessionCookie}=${session}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${cfg.sessionTtl}`];
-    if (signedIn.refreshToken) {
-      cookies.push(`memos_refresh=${signedIn.refreshToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${cfg.sessionTtl}`);
-    }
-    return { signedIn, prefs, cookies };
+    return { signedIn, prefs: { theme, locale }, cookies: buildCookies(dtUser.userid, username, signedIn.refreshToken) };
+  }
+
+  /** Re-establish a session from the proxy's own signed cookie (no DooTask call). */
+  async function bootstrapFromSession(req: http.IncomingMessage): Promise<Bootstrap | null> {
+    const session = verifySession(readCookie(req, cfg.sessionCookie), cfg.internalSecret);
+    if (!session) return null;
+    const signedIn = await users.signInExisting(session.uid);
+    if (!signedIn) return null;
+    return { signedIn, prefs: {}, cookies: buildCookies(session.uid, session.un, signedIn.refreshToken) };
   }
 
   /**
-   * Primary entry: serve the SPA's index.html with the access token + theme
-   * injected, so it boots authenticated in a single load (no redirect, no flash).
-   * Falls back to a plain proxy when the token is invalid or index.html is
-   * unavailable.
+   * SPA entry. Establishes auth and serves index.html with the token injected, so
+   * the app boots authenticated in a single, flash-free load. Order: a DooTask
+   * token (menu open) → the proxy session cookie (re-auth after timeout) → a
+   * "reopen from DooTask" page (genuinely expired; also breaks any reload loop).
    */
-  async function handleEntryInject(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
-    const sso = await runSso(url);
-    if (!sso) return void proxy.web(req, res);
-
-    const html = await memos.fetchIndexHtml();
-    if (!html) {
-      // Fall back to the redirect bootstrap if we couldn't read index.html.
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Set-Cookie': sso.cookies });
-      res.end(bootstrapHtml(sso.signedIn.accessToken, sso.signedIn.expiresAt, sso.prefs, `${cfg.publicBase}/`));
+  async function handleEntry(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
+    const boot = url.searchParams.has('token') ? await bootstrapFromToken(url) : await bootstrapFromSession(req);
+    if (!boot) {
+      sendHtml(res, sessionExpiredHtml());
       return;
     }
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Set-Cookie': sso.cookies });
-    res.end(injectIndexHtml(html, sso.signedIn.accessToken, sso.signedIn.expiresAt, sso.prefs));
-  }
-
-  /** Legacy redirect entry (kept for compatibility). */
-  async function handleSso(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
-    const sso = await runSso(url);
-    if (!sso) return void send(res, 401, 'Invalid or missing DooTask token.');
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Set-Cookie': sso.cookies });
-    res.end(bootstrapHtml(sso.signedIn.accessToken, sso.signedIn.expiresAt, sso.prefs, `${cfg.publicBase}/`));
+    const html = await memos.fetchIndexHtml();
+    if (!html) {
+      sendHtml(res, sessionExpiredHtml(), boot.cookies);
+      return;
+    }
+    sendHtml(res, injectIndexHtml(html, boot.signedIn.accessToken, boot.signedIn.expiresAt, boot.prefs), boot.cookies);
   }
 
   const server = http.createServer((req, res) => {
@@ -185,27 +204,18 @@ export function createServer(cfg: AppConfig, logger: Logger) {
 
     if (path === '/healthz') return void send(res, 200, 'ok');
 
-    // Primary SSO entry: the SPA document request carrying a DooTask token.
+    // SPA document load (root) — (re)establish the SSO session and inject.
     const accept = String(req.headers['accept'] || '');
-    if (method === 'GET' && (path === '/' || path === '') && url.searchParams.has('token') && accept.includes('text/html')) {
-      handleEntryInject(req, res, url).catch((err) => {
-        logger.error({ err: (err as Error).message }, 'entry inject failed');
+    if (method === 'GET' && (path === '/' || path === '') && accept.includes('text/html')) {
+      handleEntry(req, res, url).catch((err) => {
+        logger.error({ err: (err as Error).message }, 'entry failed');
         if (!res.headersSent) send(res, 500, 'Entry error');
       });
       return;
     }
 
-    // Legacy redirect entry.
-    if (path === cfg.ssoEntryPath) {
-      handleSso(req, res, url).catch((err) => {
-        logger.error({ err: (err as Error).message }, 'sso failed');
-        if (!res.headersSent) send(res, 500, 'SSO error');
-      });
-      return;
-    }
-
     // Force SSO: block direct sign-in / self-registration (REST + connect-RPC).
-    // Token renewal (RefreshToken) is allowed — it uses the memos_refresh cookie.
+    // Token renewal is handled by the entry re-auth above, not a login page.
     if (method === 'POST' && BLOCKED_PATHS.has(path)) {
       return void sendJson(res, 403, { message: 'Direct sign-in is disabled. Open Memos from DooTask.' });
     }

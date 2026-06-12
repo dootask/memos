@@ -65,6 +65,11 @@ export class UserManager {
     return this.cfg.adminUserIds.includes(dootaskUserId);
   }
 
+  /** Sign in an already-provisioned user by id (no provisioning/reconcile). */
+  async signInExisting(dootaskUserId: number): Promise<SignInResult | null> {
+    return this.memos.signIn(this.usernameFor(dootaskUserId), this.passwordFor(dootaskUserId));
+  }
+
   /** Sign in (creating the account first if needed) and return Memos tokens. */
   async ensureSignedIn(user: DooTaskUser): Promise<SignInResult> {
     const username = this.usernameFor(user.userid);

@@ -49,12 +49,12 @@ perl -0pi -e 's/"src": "\/(android-chrome[^"]+)"/"src": "\1"/g' web/public/site.
 # The About page renders a root-absolute "/logo.webp" directly (not via UserAvatar).
 perl -0pi -e 's/src="\/logo\.webp"/src={`\${import.meta.env.BASE_URL.replace(\/\\\/\$\/, "")}\/logo.webp`}/' web/src/pages/About.tsx
 
-# 8) DooTask: add a "Close app" entry to the left sidebar, just below Inbox
-#    (the DooTask capsule is hidden via plugin config, so this replaces its
-#    close action). The component lives in /overlay so the edit here is tiny.
-cp /overlay/DooTaskClose.tsx web/src/components/DooTaskClose.tsx
-perl -0pi -e 's/import UserMenu from "\.\/UserMenu";/import UserMenu from ".\/UserMenu";\nimport DooTaskClose from ".\/DooTaskClose";/' web/src/components/Navigation.tsx
-perl -0pi -e 's/\n(\s*)<\/TooltipProvider>/\n$1  <DooTaskClose collapsed={collapsed} \/>\n$1<\/TooltipProvider>/' web/src/components/Navigation.tsx
+# 8) DooTask: add "Open in new window" (desktop) + "Close app" entries to the
+#    left sidebar, just below Inbox (the DooTask capsule is hidden via plugin
+#    config, so these replace its actions). Component lives in /overlay.
+cp /overlay/DooTaskActions.tsx web/src/components/DooTaskActions.tsx
+perl -0pi -e 's/import UserMenu from "\.\/UserMenu";/import UserMenu from ".\/UserMenu";\nimport DooTaskActions from ".\/DooTaskActions";/' web/src/components/Navigation.tsx
+perl -0pi -e 's/\n(\s*)<\/TooltipProvider>/\n$1  <DooTaskActions collapsed={collapsed} \/>\n$1<\/TooltipProvider>/' web/src/components/Navigation.tsx
 
 # 9) DooTask SSO context: hide account-management UI that would break the managed
 #    account model. Accounts are provisioned/owned by DooTask, theme & language
@@ -66,6 +66,11 @@ perl -0pi -e 's#\s*<SettingGroup showSeparator title=\{t\("setting\.account\.dan
 perl -0pi -e 's#\s*<DropdownMenuItem onClick=\{handleSignOut\}>.*?</DropdownMenuItem>##s' web/src/components/UserMenu.tsx
 perl -0pi -e 's#\s*<DropdownMenuSub>\s*<DropdownMenuSubTrigger>\s*<GlobeIcon.*?</DropdownMenuSub>##s' web/src/components/UserMenu.tsx
 perl -0pi -e 's#\s*<DropdownMenuSub>\s*<DropdownMenuSubTrigger>\s*<PaletteIcon.*?</DropdownMenuSub>##s' web/src/components/UserMenu.tsx
+
+# 10) On auth failure the SPA does window.location.replace("/auth?...") — a root
+#     path that 404s under the sub-path. Reload the plugin entry instead, so the
+#     proxy can re-establish the session from its cookie (or show a reopen page).
+perl -0pi -e 's/window\.location\.replace\(\s*buildAuthRoute\(\{.*?\}\),?\s*\);/window.location.replace(import.meta.env.BASE_URL);/s' web/src/utils/auth-redirect.ts
 
 echo "Applied Memos sub-path patches:"
 grep -n "base:" web/vite.config.mts | head -1
