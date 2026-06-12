@@ -35,6 +35,30 @@ const BG_RESOLVER =
   `var __bg=({"default":"#faf9f5","default-dark":"#1d1f23","paper":"#f5ede4"})[__t]||"#faf9f5";`;
 
 /**
+ * Mobile safe-area (immersive status bar) support. DooTask's mobile app renders
+ * the iframe edge-to-edge under the status bar / home indicator, so without this
+ * the top of Memos sits behind the status bar. We read `props.safeArea` from the
+ * micro-app bridge (same channel `@dootask/tools` getSafeArea() uses) into CSS
+ * vars, then reserve that space page-agnostically: `#root>div` is RootLayout's
+ * sole wrapper (every route renders through it), and `.sticky.top-0` is the
+ * mobile header (the desktop sidebar is `.fixed`, so it's untouched). On desktop
+ * safeArea is 0, so these rules are no-ops there.
+ */
+const SAFE_AREA_HEAD =
+  `<style>:root{--dt-safe-top:0px;--dt-safe-bottom:0px}` +
+  `#root>div{padding-top:var(--dt-safe-top);padding-bottom:var(--dt-safe-bottom)}` +
+  `.sticky.top-0{top:var(--dt-safe-top)}</style>` +
+  `<script>(function(){` +
+  `function ap(a){try{var s=document.documentElement.style;` +
+  `s.setProperty('--dt-safe-top',((a&&a.top)||0)+'px');` +
+  `s.setProperty('--dt-safe-bottom',((a&&a.bottom)||0)+'px');}catch(e){}}` +
+  `function read(){try{if(window.microApp&&typeof window.microApp.getData==='function'){` +
+  `var d=window.microApp.getData();if(d&&d.props&&d.props.safeArea){ap(d.props.safeArea);return true;}}}catch(e){}return false;}` +
+  `var n=0;(function p(){if(read())return;if(++n>30)return;setTimeout(p,100);})();` +
+  `window.addEventListener('orientationchange',function(){setTimeout(read,300);});` +
+  `})();</script>`;
+
+/**
  * Inline script + splash injected into Memos' index.html for a flash-free,
  * single-load sign-in. `theme`/`locale` are known on a token entry and omitted on
  * a session re-mint (the page reads them from localStorage instead).
@@ -63,22 +87,47 @@ function injectIndexHtml(html: string, token: string, expiresAt: string, prefs: 
     `function start(){if(chk())return;var r=document.getElementById('root');` +
     `if(r){var o=new MutationObserver(function(){if(chk())o.disconnect();});o.observe(r,{childList:true,subtree:true});}` +
     `setTimeout(rm,8000);}` +
-    `if(document.readyState!=='loading')start();else document.addEventListener('DOMContentLoaded',start);})();</script>`;
+    `if(document.readyState!=='loading')start();else document.addEventListener('DOMContentLoaded',start);})();</script>` +
+    SAFE_AREA_HEAD;
   const body = `<div id="dootask-splash"><div class="s"></div></div>`;
   return html.replace(/<head[^>]*>/i, (m) => `${m}${head}`).replace(/<\/body>/i, `${body}</body>`);
 }
 
-/** Shown when the session is gone and we have no token — breaks any reload loop. */
+/**
+ * Served when the entry has no usable session. Instead of a dead-end, it asks the
+ * embedding DooTask shell for a fresh user token (via the micro-app `getData()`
+ * bridge — same channel `@dootask/tools` reads `props.userToken` from) and
+ * re-bootstraps at `/?token=…&reauth=1`. The `reauth=1` marker is a one-shot guard:
+ * if it's already present (the re-bootstrap also failed), or we're not embedded, or
+ * the bridge never appears, we fall back to the static "reopen from DooTask" message
+ * — so a genuinely dead session can never spin in a reload loop.
+ */
 function sessionExpiredHtml(): string {
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Memos</title>
 <script>try{var t=localStorage.getItem('memos-theme');document.documentElement.style.background=({"default":"#faf9f5","default-dark":"#1d1f23","paper":"#f5ede4"})[t]||"#faf9f5";}catch(e){}</script>
-<style>body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui;color:#888}</style>
+<style>body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui;color:#888}
+.s{width:28px;height:28px;border:3px solid rgba(127,127,127,.25);border-top-color:rgba(127,127,127,.85);border-radius:50%;animation:dtspin .8s linear infinite}
+@keyframes dtspin{to{transform:rotate(360deg)}}</style>
 </head><body>
-<div id="m"></div>
+<div id="m"><div class="s"></div></div>
 <script>
-var zh=/^zh/i.test(navigator.language||'');
-document.getElementById('m').textContent = zh ? '会话已过期，请从 DooTask 重新打开 Memos。' : 'Session expired. Please reopen Memos from DooTask.';
+(function(){
+  var zh=/^zh/i.test(navigator.language||'');
+  var box=document.getElementById('m');
+  function fail(){box.innerHTML='';box.textContent=zh?'会话已过期，请从 DooTask 重新打开 Memos。':'Session expired. Please reopen Memos from DooTask.';}
+  // Already retried once, or not inside the DooTask iframe — don't loop, just tell the user.
+  if(/[?&]reauth=1(?:&|$)/.test(location.search)||window.self===window.top){fail();return;}
+  // Poll for the micro-app bridge (~3s), then re-bootstrap with the live user token.
+  var n=0;
+  (function poll(){
+    var tok=null;
+    try{if(window.microApp&&typeof window.microApp.getData==='function'){var d=window.microApp.getData();tok=d&&d.props&&d.props.userToken;}}catch(e){}
+    if(tok){location.replace(location.pathname+'?token='+encodeURIComponent(tok)+'&reauth=1');return;}
+    if(++n>30){fail();return;}
+    setTimeout(poll,100);
+  })();
+})();
 </script>
 </body></html>`;
 }
@@ -180,8 +229,9 @@ export function createServer(cfg: AppConfig, logger: Logger) {
   /**
    * SPA entry. Establishes auth and serves index.html with the token injected, so
    * the app boots authenticated in a single, flash-free load. Order: a DooTask
-   * token (menu open) → the proxy session cookie (re-auth after timeout) → a
-   * "reopen from DooTask" page (genuinely expired; also breaks any reload loop).
+   * token (menu open) → the proxy session cookie (re-auth after timeout) → the
+   * auto-reauth page, which pulls a fresh token from the DooTask shell and retries
+   * once, then falls back to a static "reopen from DooTask" message.
    */
   async function handleEntry(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
     const boot = url.searchParams.has('token') ? await bootstrapFromToken(url) : await bootstrapFromSession(req);
