@@ -26,13 +26,16 @@ menu_items:
       en: Memos
       zh: Memos 笔记
     url: "apps/memos/?token={user_token}&lang={system_lang}&theme={system_theme}"
-    url_type: iframe
-    # Not immersive: let DooTask pad the iframe by the mobile status-bar /
-    # navigation-bar height (--status-bar-height / --navigation-bar-height), so
-    # Memos' content clears the immersive status bar. On desktop both are 0, so
-    # there is no visual change there.
+    type:
+      desktop: iframe_blank
+      default: iframe
     immersive: false
-    # Hide DooTask's floating capsule (it overlaps the Memos header). The
-    # "Close app" action lives in the Memos left sidebar instead.
+    background: "oklch(98.18% .0054 95.0986)|oklch(0.24 0.008 255)"
     capsule:
       visible: false
+
+require_version:
+  version: "> 1.7.90"
+  reason:
+    en: "DooTask 1.7.91+ is required to use the Memos plugin."
+    zh: "需要 DooTask 1.7.91+ 才能使用 Memos 插件。"
