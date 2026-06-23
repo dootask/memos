@@ -12,3 +12,6 @@ author: DooTask
 website: https://www.usememos.com
 github: https://github.com/dootask/memos
 document: https://www.usememos.com/docs
+
+# AI 助手知识库：随包发布，安装后并入产品内 AI 助手检索
+knowledge_base: ./ai-kb

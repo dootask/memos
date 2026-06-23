@@ -24,16 +24,16 @@ last_verified: v1.7.90
 # Memos 笔记入口
 
 ## 路径
-Memos 由独立插件 `community_kuaifan_memos` 提供，安装后在应用中心注册一个菜单项：
+Memos 由独立插件（应用市场 app id `memos`）提供，安装后在应用中心注册一个菜单项：
 
 - 桌面端：左侧栏「应用」→「Memos 笔记」（对应 URL `apps/memos/`）
 - 移动端：底部 Tabbar「应用」→「Memos 笔记」
 - URL 上会自动附带 `token`、`lang`、`theme` 参数，用于单点登录与主题同步
 
 ## 加载方式
-- 菜单项类型 `url_type: iframe`，在 DooTask 主框架内嵌打开
-- `immersive: true`：进入页面后会全屏沉浸展示
-- 隐藏 DooTask 的浮动胶囊条（与 Memos 自带顶栏重叠），返回主程序请使用 Memos 左侧栏的「关闭应用」按钮
+- 以 iframe 形式嵌入打开：桌面端在新窗口打开（iframe_blank），移动端等其他场景内嵌在主框架内
+- 非沉浸式展示（不抢占安全区），并隐藏 DooTask 的浮动胶囊条（与 Memos 自带顶栏重叠）
+- 返回主程序请使用 Memos 左侧栏的「关闭应用」按钮
 
 ## 权限要求
 - 所有已登录的 DooTask 用户可见可用

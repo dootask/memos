@@ -10,7 +10,7 @@ aliases:
   - memos 怎么装
   - memos 应用市场
   - 笔记插件
-  - community_kuaifan_memos
+  - memos 应用 id
 related_tools: []
 related_pages: [application]
 prerequisites: []
@@ -24,7 +24,7 @@ last_verified: v1.7.90
 # Memos 插件元信息
 
 ## 定义
-Memos 在 DooTask 中由社区插件提供，应用市场 app id 为 `community_kuaifan_memos`（当前版本 0.29.0），feature 短名 `memos`。主程序不内置任何 Memos 代码，所有笔记逻辑都跑在独立容器中，通过 nginx 反向代理 `/apps/memos/` 子路径挂载到 DooTask 界面。
+Memos 在 DooTask 中由社区插件提供，应用市场 app id 为 `memos`，feature 短名 `memos`。主程序不内置任何 Memos 代码，所有笔记逻辑都跑在独立容器中，通过 nginx 反向代理 `/apps/memos/` 子路径挂载到 DooTask 界面。注意：插件在应用市场的版本号随发布走，与下方上游 Memos 镜像 tag（`0.29.0`）不是一回事。
 
 ## 关键属性
 - **作者**：DooTask 官方（基于开源项目 usememos/memos）
